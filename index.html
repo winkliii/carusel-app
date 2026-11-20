@@ -53,6 +53,9 @@ a.btn{display:block;text-decoration:none;color:var(--text)}
 aside{width:290px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:14px;-webkit-user-select:none}
 aside h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;font-weight:600}
 aside h3:first-child{margin-top:0}
+aside summary{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;font-weight:600;cursor:pointer}
+aside details[open] summary{color:var(--text)}
+dialog a{color:var(--accent)}
 .row{display:flex;align-items:center;gap:8px;margin:7px 0}
 .row label{flex:0 0 96px;color:var(--muted)}
 .row input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
@@ -141,6 +144,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <h3>Video cu derulare automată</h3>
   <div class="row"><label>Viteză</label><select id="dlSpeed"><option value="2.4">Lentă</option><option value="1.6" selected>Normală</option><option value="1">Rapidă</option></select></div>
   <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" data-close>Renunță</button><button class="btn" id="dlVideo">Salvează ca video</button><button class="btn primary" id="dlGo" autofocus>Descarcă</button></div>
+  <div class="tip fb" style="text-align:center"><a href="#" data-fb>Spune-ne părerea ta despre aplicație</a></div>
 </dialog>
 
 <dialog id="dlgEl">
@@ -169,6 +173,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <div class="row"><input type="text" id="libName" maxlength="60" placeholder="Numele proiectului"><button class="btn primary" id="libSave">Salvează-l pe cel curent</button></div>
   <div id="libList"></div>
   <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" id="libImport">Deschide din fișier…</button><button class="btn" id="libExport">Exportă ca fișier…</button><button class="btn" data-close autofocus>Închide</button></div>
+  <div class="tip fb" style="text-align:center"><a href="#" data-fb>Spune-ne părerea ta despre aplicație</a></div>
 </dialog>
 
 <dialog id="dlgApp">
@@ -201,7 +206,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 10;                                        // bumped by publish.sh
+const APP_VERSION = 11;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
@@ -1077,15 +1082,17 @@ function refreshPanel(){
     <div class="cgrid">${DESIGNS.map((D, i) => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(D)}${D.n}</button>`).join('')}</div>
     <div class="row"><button class="btn ${state.des == null && state.tpl == null ? 'on' : ''}" style="flex:1" data-act="des:none">Fără șablon (pânză goală)</button></div>
     <div class="tip" style="margin:0 0 4px">Compoziții gata făcute, cu fundal, rame și text de exemplu. Pune pozele tale în celule și schimbă textele.</div>
-    <h3>Colaje simple (${COLLAGES.length})</h3>
+    <details data-sec="col" ${openSec.col || state.tpl != null ? 'open' : ''}><summary>Colaje simple (${COLLAGES.length})</summary>
     <div class="cgrid">${COLLAGES.map((T, i) => `<button class="btn ${state.tpl === i ? 'on' : ''}" data-act="col:${i}">${thumb(T)}${T.n}</button>`).join('')}</div>
     ${rng('Spațiu', 'gap', 0, 120, 1, state.gap ?? 30, 'state')}${rng('Colțuri', 'rad', 0, 200, 1, state.rad ?? 0, 'state')}
     <div class="tip" style="margin-top:4px">Alege numărul de cadre, apoi un colaj. Pozele adăugate intră pe rând în celulele goale; ${COARSE ? 'atinge' : 'apasă'} o celulă selectată ca să-i alegi poza.</div>
-    <h3>Aranjare după forma pozelor</h3><div class="tpl">
+    </details>
+    <details data-sec="auto" ${openSec.auto ? 'open' : ''}><summary>Aranjare după forma pozelor</summary><div class="tpl">
       <button class="btn" data-act="tpl:pano">Panoramă<small>Prima imagine întinsă peste toate cadrele</small></button>
       <button class="btn" data-act="tpl:film">Bandă continuă<small>Pozele întregi, una lângă alta</small></button>
       <button class="btn" data-act="tpl:two">Două rânduri<small>Două benzi suprapuse</small></button>
     </div>
+    </details>
     <h3>Proiect${proj.name ? ' · ' + esc(proj.name) : ''}</h3><div class="grid2"><button class="btn" data-act="save">Salvează</button><button class="btn" data-act="lib">Proiecte…</button></div>
     <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
     ${FEEDBACK_URL ? '<h3>Părerea ta</h3><div class="row"><button class="btn" style="flex:1" data-act="feedback">Trimite feedback…</button></div>' : ''}
@@ -1143,6 +1150,8 @@ panel.addEventListener('change', ev => {
   commit(); if (['type', 'kind'].includes(ev.target.dataset.k) || ev.target.dataset.o === 'fx') refreshPanel();
 });
 panel.addEventListener('click', ev => { const b = ev.target.closest('[data-act]'); if (b) act(b.dataset.act); });
+const openSec = {col:false, auto:false};                  // which folded sections the user opened; survives panel refreshes
+panel.addEventListener('toggle', ev => { const d = ev.target; if (d.dataset && d.dataset.sec) openSec[d.dataset.sec] = d.open; }, true);
 
 /* ---------- export ---------- */
 async function renderFrame(i, k, type, q, mode = 1){
@@ -1282,8 +1291,7 @@ async function libDelete(id){
   const s = await kv('readwrite'); s.delete('lib:' + id); await idb(s.delete('libdata:' + id));
   if (proj.id === id){ proj = {id:null, name:''}; scheduleSave(); refreshPanel(); }
 }
-const DEFAULT_DESIGN = 0;                             // a new project opens with this modern template already laid out
-function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; hist = []; hi = -1; design(DEFAULT_DESIGN); }
+function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); }
 function clearTemplate(){                             // "no template": keep the photos and the user's own elements, drop cells and decorations
   state.els = state.els.filter(e => !isSlot(e) && !e.d); state.des = null; state.tpl = null; state.blank = true;
   state.bg = Object.assign({}, state.bg, {type:'solid', c1:'#ffffff'}); if (!getSel()) sel = null;
@@ -1327,6 +1335,7 @@ $('libList').addEventListener('click', async ev => {
 $('libImport').onclick = () => $('fProj').click();
 $('libExport').onclick = saveProject;
 $('bLib').onclick = showLib;
+document.querySelectorAll('[data-fb]').forEach(a => { a.onclick = ev => { ev.preventDefault(); act('feedback'); }; if (!FEEDBACK_URL) a.parentNode.style.display = 'none'; });
 
 /* ---------- toolbar wiring ---------- */
 $('bAdd').onclick = () => { pickFor = null; $('fImg').click(); };
@@ -1373,12 +1382,7 @@ async function checkUpdate(){
     toast('Se actualizează la versiunea ' + v + '…'); await saveLocal(); setTimeout(() => location.reload(), 900);
   }catch(e){}
 }
-(async () => {
-  const had = await loadLocal();
-  if (!had || (!state.els.length && state.des == null && state.tpl == null && !state.blank)) design(DEFAULT_DESIGN);   // nothing saved yet: start from the default template
-  else { commit(); refreshPanel(); fit(); }
-  checkUpdate();
-})();
+(async () => { await loadLocal(); commit(); refreshPanel(); fit(); checkUpdate(); })();
 </script>
 </body>
 </html>
