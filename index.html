@@ -69,7 +69,7 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 .tpl small{display:block;color:var(--muted);margin-top:2px}
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
 .cgrid .btn{padding:6px 6px 5px;white-space:normal;font-size:11px;line-height:1.25;color:var(--muted);text-align:center}
-.cgrid .btn.on{border-color:var(--accent);color:var(--accent)}
+.cgrid .btn.on,aside .row .btn.on{border-color:var(--accent);color:var(--accent)}
 .cgrid svg{display:block;width:100%;height:auto;margin-bottom:4px;color:var(--text);background:var(--bg);border-radius:3px}
 .seg{margin-bottom:2px}
 .tip{color:var(--muted);font-size:12px;margin-top:14px;line-height:1.5}
@@ -201,7 +201,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 9;                                        // bumped by publish.sh
+const APP_VERSION = 10;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
@@ -270,11 +270,12 @@ async function loadLocal(){
   try{
     const d = await db();
     const rec = await new Promise((res, rej) => { const r = d.transaction('kv').objectStore('kv').get('project'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-    if (!rec) return;
+    if (!rec) return false;
     for (const i of rec.imgs) await addBlob(i.blob, i.id).catch(() => {});
     state = JSON.parse(rec.state); if (rec.proj) proj = rec.proj;
     state.els = state.els.filter(e => e.type !== 'image' || !e.img || images.has(e.img));
-  }catch(e){}
+    return true;
+  }catch(e){ return false; }
 }
 
 /* ---------- images ---------- */
@@ -790,6 +791,7 @@ function act(a){
   if (a === 'f-' || a === 'f+') return setFrames(state.frames + (a === 'f+' ? 1 : -1));
   if (a.startsWith('tpl:')) return template(a.slice(4));
   if (a.startsWith('col:')) return chooseTemplate('col', +a.slice(4));
+  if (a === 'des:none') return clearTemplate();
   if (a.startsWith('des:')) return chooseTemplate('des', +a.slice(4));
   if (a.startsWith('fn:')) return setFrames(+a.slice(3));
   if (a === 'getapp') return $('dlgApp').showModal();
@@ -1073,6 +1075,7 @@ function refreshPanel(){
     ${b.type === 'grad' ? rng('Unghi', 'angle', 0, 360, 1, b.angle, 'bg') : ''}
     <h3>Șabloane moderne (${DESIGNS.length})</h3>
     <div class="cgrid">${DESIGNS.map((D, i) => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(D)}${D.n}</button>`).join('')}</div>
+    <div class="row"><button class="btn ${state.des == null && state.tpl == null ? 'on' : ''}" style="flex:1" data-act="des:none">Fără șablon (pânză goală)</button></div>
     <div class="tip" style="margin:0 0 4px">Compoziții gata făcute, cu fundal, rame și text de exemplu. Pune pozele tale în celule și schimbă textele.</div>
     <h3>Colaje simple (${COLLAGES.length})</h3>
     <div class="cgrid">${COLLAGES.map((T, i) => `<button class="btn ${state.tpl === i ? 'on' : ''}" data-act="col:${i}">${thumb(T)}${T.n}</button>`).join('')}</div>
@@ -1279,7 +1282,13 @@ async function libDelete(id){
   const s = await kv('readwrite'); s.delete('lib:' + id); await idb(s.delete('libdata:' + id));
   if (proj.id === id){ proj = {id:null, name:''}; scheduleSave(); refreshPanel(); }
 }
-function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); }
+const DEFAULT_DESIGN = 0;                             // a new project opens with this modern template already laid out
+function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; hist = []; hi = -1; design(DEFAULT_DESIGN); }
+function clearTemplate(){                             // "no template": keep the photos and the user's own elements, drop cells and decorations
+  state.els = state.els.filter(e => !isSlot(e) && !e.d); state.des = null; state.tpl = null; state.blank = true;
+  state.bg = Object.assign({}, state.bg, {type:'solid', c1:'#ffffff'}); if (!getSel()) sel = null;
+  commit(); fit(); refreshPanel();
+}
 async function keepCurrent(){ if (state.els.length) await libSave(proj.name || defName()).catch(() => {}); }   // never lose work silently
 async function quickSave(){
   if (!proj.id) return showLib();
@@ -1364,7 +1373,12 @@ async function checkUpdate(){
     toast('Se actualizează la versiunea ' + v + '…'); await saveLocal(); setTimeout(() => location.reload(), 900);
   }catch(e){}
 }
-(async () => { await loadLocal(); commit(); refreshPanel(); fit(); checkUpdate(); })();
+(async () => {
+  const had = await loadLocal();
+  if (!had || (!state.els.length && state.des == null && state.tpl == null && !state.blank)) design(DEFAULT_DESIGN);   // nothing saved yet: start from the default template
+  else { commit(); refreshPanel(); fit(); }
+  checkUpdate();
+})();
 </script>
 </body>
 </html>
