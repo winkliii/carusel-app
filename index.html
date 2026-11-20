@@ -195,7 +195,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 6;                                        // bumped by publish.sh
+const APP_VERSION = 7;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
@@ -339,9 +339,12 @@ function place(e){                        // put a new element in the middle of 
   const c = viewCenter(); e.x = c.x - e.w / 2; e.y = c.y - e.h / 2;
   state.els.push(e); sel = e.id; commit(); refreshPanel(); render();
 }
-function addText(style){
+function mkText(style){
   const e = Object.assign({id:uid(), type:'text', text:'Textul tău', font:FONTS[0], size:110, color:'#111111', bold:true, italic:false, align:'center', lh:1.15, ls:0, ow:0, oc:'#111111', bg:false, bgc:'#111111', x:0, y:0, w:null, h:null, rot:0, opacity:1, shadow:false}, style || {});
-  measure(e); place(e);
+  measure(e); return e;
+}
+function addText(style){
+  place(mkText(style));
   const ta = panel.querySelector('textarea'); if (ta && !COARSE){ ta.focus(); ta.select(); }   // on phones the keyboard would cover the canvas
 }
 
@@ -763,6 +766,7 @@ function act(a){
   if (a === 'f-' || a === 'f+'){ state.frames = clamp(state.frames + (a === 'f+' ? 1 : -1), 1, MAXF); commit(); layout(); refreshPanel(); return; }
   if (a.startsWith('tpl:')) return template(a.slice(4));
   if (a.startsWith('col:')) return collage(+a.slice(4));
+  if (a.startsWith('des:')) return design(+a.slice(4));
   if (a.startsWith('fn:')){ state.frames = clamp(+a.slice(3), 1, MAXF); commit(); fit(); refreshPanel(); return; }
   if (a === 'getapp') return $('dlgApp').showModal();
   if (a === 'save') return quickSave();
@@ -783,7 +787,7 @@ function act(a){
 function template(name){
   const imgs = state.els.filter(e => e.type === 'image' && e.img);
   if (!imgs.length){ toast('Adaugă mai întâi câteva imagini'); return; }
-  state.els = state.els.filter(e => !isSlot(e)); state.tpl = null; if (!getSel()) sel = null;
+  state.els = state.els.filter(e => !isSlot(e) && !e.d); state.tpl = null; state.des = null; if (!getSel()) sel = null;
   const h = H(), ar = e => { const im = images.get(e.img); return im.w / im.h; };
   imgs.forEach(e => Object.assign(e, {rot:0, cx:.5, cy:.5, cz:1}));
   const strip = (list, y, rh, gap) => {            // natural-width row; returns total width
@@ -862,12 +866,100 @@ function collage(i, live){
   const byPos = (cx1, y1, cx2, y2) => Math.abs(cx1 - cx2) > 1 ? cx1 - cx2 : y1 - y2;   // left to right, then top to bottom
   rects.sort((p, q) => byPos(p[0] + p[2] / 2, p[1], q[0] + q[2] / 2, q[1]));
   const imgs = state.els.filter(e => e.type === 'image' && e.img).sort((p, q) => byPos(p.x + p.w / 2, p.y, q.x + q.w / 2, q.y));
-  const rest = state.els.filter(e => e.type !== 'image');
+  const rest = state.els.filter(e => e.type !== 'image' && !e.d);
+  if (state.des != null){ imgs.forEach(e => Object.assign(e, {frame:'none', mask:'rect', shadow:false, border:0})); state.des = null; }
   const cells = rects.map((r, k) => Object.assign(imgs[k] || newImg(null, 0, 0, 1, 1), {x:r[0], y:r[1], w:r[2], h:r[3], rot:0, radius:rad}));
   state.els = [...cells, ...imgs.slice(rects.length), ...rest];      // photos first, text stays on top
   state.tpl = i; if (!getSel()) sel = null;
   if (live){ render(); return; }
   commit(); fit(); refreshPanel();
+}
+/* ---------- designed templates ----------
+   Ready-made compositions: background, photo cells (i), shapes (s) and sample text (t). x/w are in frames, y/h a fraction of
+   the height; text is placed by its centre with size z. The pattern in `it` repeats every p frames; `first` appears once. */
+const CAL = TEXT_STYLES[5].o.font;
+const DSTYLE = {b:{bold:true}, sp:{ls:10}, cal:{italic:true, font:CAL}, out:{bold:true, color:'#ffffff', ow:5, oc:'#111111'}, lab:{bold:true, color:'#111111', bg:true, bgc:'#ff8552'}, lab2:{bold:true, color:'#111111', bg:true, bgc:'#6fd08c'}};
+const DESIGNS = [
+  {n:'Album foto', bg:['#f3ece0'], p:2, it:[
+    {i:1, x:.12, y:.14, w:.7, h:.6, r:-5, f:'polaroid', sh:1}, {s:'rect', x:.36, y:.115, w:.22, h:.04, r:-8, c:'#d9c7a3', o:.8},
+    {i:1, x:.72, y:.36, w:.62, h:.54, r:6, f:'polaroid', sh:1}, {s:'rect', x:.94, y:.34, w:.2, h:.04, r:9, c:'#d9c7a3', o:.8},
+    {i:1, x:1.38, y:.09, w:.54, h:.47, r:-3, f:'polaroid', sh:1}, {t:'✨', x:1.78, y:.74, z:150}],
+    first:[{t:'Amintiri', x:.36, y:.88, z:120, st:'cal', c:'#3b3226'}]},
+  {n:'Minimal', bg:['#ffffff'], p:1, it:[
+    {i:1, x:.14, y:.12, w:.72, h:.62}, {t:'LOCAȚIE · DATĂ', x:.5, y:.82, z:30, st:'sp', c:'#222222'}, {s:'line', x:0, y:.955, w:1, h:.003, c:'#222222'}]},
+  {n:'Rolă de film', bg:['#111111'], p:1.5, it:[
+    {i:1, x:0, y:.2, w:1.5, h:.6, f:'film'}, {t:'ROLA {n}', x:.22, y:.11, z:28, st:'sp', c:'#e8e2d0'}]},
+  {n:'Revistă', bg:['#f5f2ec'], p:2, it:[
+    {i:1, x:0, y:0, w:1, h:1}, {i:1, x:1.1, y:.3, w:.8, h:.6},
+    {t:'Titlu de capitol', x:1.5, y:.14, z:76, st:'b', c:'#111111'}, {t:'Câteva cuvinte despre moment', x:1.5, y:.22, z:34, c:'#555555'}],
+    first:[{t:'REVISTA\nTA', x:.5, y:.2, z:170, st:'out'}, {t:'EDIȚIA 01', x:.5, y:.93, z:30, st:'sp', c:'#ffffff'}]},
+  {n:'Mood board', bg:['#ece5da'], p:2, it:[
+    {i:1, x:.08, y:.08, w:.5, h:.5}, {i:1, x:.64, y:.2, w:.68, h:.62}, {i:1, x:.1, y:.64, w:.44, h:.28},
+    {s:'ellipse', x:1.42, y:.1, w:.16, h:.128, c:'#b08968'}, {s:'ellipse', x:1.62, y:.1, w:.16, h:.128, c:'#7f5539'}, {s:'ellipse', x:1.82, y:.1, w:.16, h:.128, c:'#ddb892'},
+    {i:1, x:1.42, y:.3, w:.5, h:.58, m:'arch'}, {t:'MOOD', x:1.67, y:.94, z:30, st:'sp', c:'#5b4636'}]},
+  {n:'Arcade', bg:['#f7f1ea', '#ead9c8', 90], p:2, it:[
+    {i:1, x:.16, y:.14, w:.68, h:.72, m:'arch'}, {i:1, x:1.2, y:.12, w:.62, h:.6, m:'arch'},
+    {i:1, x:.82, y:.54, w:.36, h:.29, m:'ellipse', b:10, bc:'#ffffff', sh:1}, {t:'împreună', x:1.5, y:.84, z:110, st:'cal', c:'#6b4f3a'}]},
+  {n:'Blocuri de culoare', bg:['#fff7ef'], p:2, it:[
+    {s:'rect', x:.06, y:.08, w:.6, h:.6, c:'#ff8552'}, {i:1, x:.16, y:.16, w:.62, h:.62, sh:1},
+    {s:'rect', x:.9, y:.5, w:.5, h:.42, c:'#2d6a9f'}, {i:1, x:.98, y:.1, w:.56, h:.5, sh:1},
+    {s:'ellipse', x:1.56, y:.64, w:.3, h:.24, c:'#f2c14e'}, {i:1, x:1.5, y:.46, w:.42, h:.44, sh:1}],
+    first:[{t:'SALUT!', x:.42, y:.9, z:110, st:'b', c:'#111111'}]},
+  {n:'Numerotat', bg:['#fafafa'], p:1, it:[
+    {i:1, x:.08, y:.2, w:.84, h:.62, rad:28}, {t:'{n}', x:.2, y:.11, z:130, st:'b', c:'#111111'}, {t:'ZIUA {n}', x:.74, y:.115, z:28, st:'sp', c:'#666666'}, {s:'line', x:0, y:.9, w:1, h:.004, c:'#111111'}]},
+  {n:'Înainte / După', bg:['#101214'], p:2, it:[
+    {i:1, x:.06, y:.14, w:.9, h:.7, rad:24}, {i:1, x:1.04, y:.14, w:.9, h:.7, rad:24},
+    {t:'ÎNAINTE', x:.5, y:.07, z:44, st:'lab'}, {t:'DUPĂ', x:1.5, y:.07, z:44, st:'lab2'}, {s:'arrow', x:.86, y:.44, w:.28, h:.1, c:'#ff8552'}]},
+  {n:'Citat', bg:['#243b53'], p:2, it:[
+    {t:'„Scrie aici\nun gând."', x:.5, y:.45, z:92, st:'b', c:'#ffffff'}, {s:'line', x:.3, y:.72, w:.4, h:.004, c:'#ff8552'},
+    {i:1, x:.84, y:.26, w:.5, h:.4, m:'ellipse', b:12, bc:'#ffffff'}, {i:1, x:1.42, y:.12, w:.48, h:.5, rad:20},
+    {t:'— semnătura', x:1.66, y:.8, z:44, st:'cal', c:'#cfd8e3'}]},
+  {n:'Panoramă cu titlu', bg:['#000000'], p:1, it:[], first:[
+    {i:1, x:0, y:0, w:'all', h:1}, {s:'rect', x:.08, y:.74, w:.84, h:.16, c:'#000000', o:.45, rad:18},
+    {t:'Titlul tău', x:.5, y:.8, z:84, st:'b', c:'#ffffff'}, {t:'GLISEAZĂ →', x:.5, y:.865, z:26, st:'sp', c:'#ffffff'}]},
+  {n:'Jurnal', bg:['#fbf6ee'], p:2, it:[
+    {i:1, x:.1, y:.1, w:.6, h:.46, r:-4, sh:1, b:14, bc:'#ffffff'}, {i:1, x:.52, y:.5, w:.66, h:.42, r:3, sh:1, b:14, bc:'#ffffff'}, {t:'📍', x:.18, y:.66, z:110},
+    {i:1, x:1.3, y:.12, w:.58, h:.56, r:5, sh:1, b:14, bc:'#ffffff'}, {t:'azi', x:1.6, y:.8, z:120, st:'cal', c:'#444444'}, {t:'🌿', x:1.16, y:.12, z:120}]},
+];
+function design(i){
+  const D = DESIGNS[i], h = H(), out = [];
+  const imgs = state.els.filter(e => e.type === 'image' && e.img).sort((p, q) => Math.abs(p.x + p.w / 2 - q.x - q.w / 2) > 1 ? (p.x + p.w / 2) - (q.x + q.w / 2) : p.y - q.y);
+  const own = state.els.filter(e => e.type !== 'image' && !e.d);     // the user's own text and shapes stay
+  const per = D.it.filter(it => it.i).length, once = (D.first || []).filter(it => it.i).length;
+  if (per && imgs.length > once) state.frames = clamp(Math.max(state.frames, Math.ceil(Math.ceil((imgs.length - once) / per) * D.p)), 1, MAXF);   // make room for every photo
+  const w = W(); let k = 0;
+  const put = (it, t) => {
+    const x0 = (t * D.p + it.x) * FW; if (x0 > w - FW * .15) return;
+    if (it.t != null){
+      const e = mkText(Object.assign({text:it.t.replace('{n}', String(t + 1).padStart(2, '0')), size:it.z, color:it.c || '#111111', bold:false}, DSTYLE[it.st]));
+      out.push(Object.assign(e, {x:x0 - e.w / 2, y:it.y * h - e.h / 2, rot:it.r || 0, d:1})); return;
+    }
+    const box = {x:x0, y:it.y * h, w:it.w === 'all' ? w : it.w * FW, h:it.h * h, rot:it.r || 0};
+    if (it.s) out.push(Object.assign({id:uid(), type:'shape', kind:it.s, opacity:it.o == null ? 1 : it.o, fill:it.c, nofill:false, stroke:'#111111', sw:0, radius:it.rad || 0, shadow:false, d:1}, box));
+    else out.push(Object.assign(imgs[k++] || newImg(null, 0, 0, 1, 1), box, {frame:it.f || 'none', mask:it.m || 'rect', shadow:!!it.sh, radius:it.rad || 0, border:it.b || 0, borderColor:it.bc || '#ffffff'}));
+  };
+  (D.first || []).filter(it => it.i).forEach(it => put(it, 0));        // a full-width photo goes underneath everything
+  for (let t = 0; t * D.p < state.frames; t++) D.it.forEach(it => put(it, t));
+  (D.first || []).filter(it => !it.i).forEach(it => put(it, 0));
+  const spare = imgs.slice(k); spare.forEach(e => Object.assign(e, {frame:'none', mask:'rect', shadow:false, border:0, rot:0}));   // photos that did not fit keep a plain look
+  state.els = [...out, ...spare, ...own];
+  state.bg = D.bg.length > 1 ? {type:'grad', c1:D.bg[0], c2:D.bg[1], angle:D.bg[2]} : Object.assign({}, state.bg, {type:'solid', c1:D.bg[0]});
+  state.tpl = null; state.des = i; if (!getSel()) sel = null;
+  commit(); fit(); refreshPanel();
+}
+function dthumb(D){
+  let s = '';
+  const one = (it, t) => {
+    const x = (t * D.p + it.x) * 32, y = it.y * 40; if (x > 92) return;
+    if (it.t != null){ const tw = Math.min(26, Math.max(6, it.t.length * it.z / 60)); s += `<rect x="${(x - tw / 2).toFixed(1)}" y="${(y - 1).toFixed(1)}" width="${tw.toFixed(1)}" height="2" rx="1" fill="${it.c || (it.st === 'out' ? '#ffffff' : '#111111')}"/>`; return; }
+    const w = it.w === 'all' ? 96 : it.w * 32, h = it.h * 40, cx = x + w / 2, cy = y + h / 2, fill = it.s ? it.c : '#9aa0a8', rot = it.r ? ` transform="rotate(${it.r} ${cx.toFixed(1)} ${cy.toFixed(1)})"` : '', op = it.o ? ` opacity="${it.o}"` : '';
+    s += (it.m === 'ellipse' || it.s === 'ellipse') ? `<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(w / 2).toFixed(1)}" ry="${(h / 2).toFixed(1)}" fill="${fill}"${op}/>`
+      : `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(.6, h).toFixed(1)}" rx="${it.m === 'arch' ? Math.min(w, h) / 2 : 1}" fill="${fill}"${op}${rot}${it.f === 'polaroid' ? ' stroke="#ffffff" stroke-width="1.6"' : it.f === 'film' ? ' stroke="#000000" stroke-width="2"' : ''}/>`;
+  };
+  (D.first || []).filter(it => it.i).forEach(it => one(it, 0));
+  for (let t = 0; t * D.p < 3; t++) D.it.forEach(it => one(it, t));
+  (D.first || []).filter(it => !it.i).forEach(it => one(it, 0));
+  return `<svg viewBox="0 0 96 40"><rect width="96" height="40" fill="${D.bg[0]}"/>${s}<path d="M32 0v40M64 0v40" stroke="var(--accent)" stroke-dasharray="2 2" stroke-width=".8"/></svg>`;
 }
 function thumb(T){
   let s = '';
@@ -894,7 +986,10 @@ function refreshPanel(){
     <div class="row"><label>Tip</label><select data-o="bg" data-k="type"><option value="solid" ${b.type === 'solid' ? 'selected' : ''}>Culoare simplă</option><option value="grad" ${b.type === 'grad' ? 'selected' : ''}>Gradient</option></select></div>
     <div class="row"><label>Culoare</label><input type="color" data-o="bg" data-k="c1" value="${b.c1}">${b.type === 'grad' ? `<input type="color" data-o="bg" data-k="c2" value="${b.c2}">` : ''}</div>
     ${b.type === 'grad' ? rng('Unghi', 'angle', 0, 360, 1, b.angle, 'bg') : ''}
-    <h3>Colaje (${COLLAGES.length} de șabloane)</h3>
+    <h3>Șabloane moderne (${DESIGNS.length})</h3>
+    <div class="cgrid">${DESIGNS.map((D, i) => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(D)}${D.n}</button>`).join('')}</div>
+    <div class="tip" style="margin:0 0 4px">Compoziții gata făcute, cu fundal, rame și text de exemplu. Pune pozele tale în celule și schimbă textele.</div>
+    <h3>Colaje simple (${COLLAGES.length})</h3>
     <div class="cgrid">${COLLAGES.map((T, i) => `<button class="btn ${state.tpl === i ? 'on' : ''}" data-act="col:${i}">${thumb(T)}${T.n}</button>`).join('')}</div>
     ${rng('Spațiu', 'gap', 0, 120, 1, state.gap ?? 30, 'state')}${rng('Colțuri', 'rad', 0, 200, 1, state.rad ?? 0, 'state')}
     <div class="tip" style="margin-top:4px">Alege numărul de cadre, apoi un colaj. Pozele adăugate intră pe rând în celulele goale; ${COARSE ? 'atinge' : 'apasă'} o celulă selectată ca să-i alegi poza.</div>
