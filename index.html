@@ -195,7 +195,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 7;                                        // bumped by publish.sh
+const APP_VERSION = 8;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
@@ -205,6 +205,7 @@ const APPS = [
   {os:null, n:'Mac — Intel', d:'Mac mai vechi, cu procesor Intel · 100 MB', f:'CaruselStudio-Mac-Intel.zip'},
   {os:/Android/, n:'Android', d:'Fișier APK pentru telefon sau tabletă · 4 MB', f:'CaruselStudio-Android.apk'},
 ];
+const FEEDBACK_URL = 'https://forms.gle/zvnxs7m3vAgKuXjz9';   // Google Form for feedback; the button is hidden when this is empty
 const DL_LABEL = NATIVE ? 'Salvează / Partajează' : 'Descarcă';
 const KEY = IS_MAC ? {mod:'⌘', alt:'⌥', shift:'⇧'} : {mod:'Ctrl', alt:'Alt', shift:'Shift'};
 const fresh = () => ({format:'4:5', frames:3, bg:{type:'solid', c1:'#ffffff', c2:'#f1d9c4', angle:0}, gap:30, rad:0, tpl:null, els:[]});
@@ -769,6 +770,7 @@ function act(a){
   if (a.startsWith('des:')) return design(+a.slice(4));
   if (a.startsWith('fn:')){ state.frames = clamp(+a.slice(3), 1, MAXF); commit(); fit(); refreshPanel(); return; }
   if (a === 'getapp') return $('dlgApp').showModal();
+  if (a === 'feedback') return void window.open(FEEDBACK_URL, '_blank');
   if (a === 'save') return quickSave();
   if (a === 'lib') return showLib();
   if (a === 'new') return leave(newProject);
@@ -1000,6 +1002,7 @@ function refreshPanel(){
     </div>
     <h3>Proiect${proj.name ? ' · ' + esc(proj.name) : ''}</h3><div class="grid2"><button class="btn" data-act="save">Salvează</button><button class="btn" data-act="lib">Proiecte…</button></div>
     <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
+    ${FEEDBACK_URL ? '<h3>Părerea ta</h3><div class="row"><button class="btn" style="flex:1" data-act="feedback">Trimite feedback…</button></div>' : ''}
     ${WEB ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="getapp">⤓ Descarcă aplicația…</button></div>' : ''}
     <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor. <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
   } else {
