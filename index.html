@@ -29,6 +29,13 @@ main{flex:1;display:flex;min-height:0}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #scroller{position:absolute;inset:0;overflow:auto;touch-action:pan-x pan-y;-webkit-tap-highlight-color:transparent}
 #bPanel,#bApp{display:none}
+dialog{max-height:88vh;overflow:auto}
+dialog h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;font-weight:600}
+.egrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.egrid .btn{padding:6px 2px;font-size:22px;line-height:1.1;text-align:center}
+.egrid img{width:100%;max-width:40px;display:block;margin:auto}
+.chips{margin-bottom:8px}
+.seg.chips .btn{flex:0 0 auto;padding:6px 10px}
 dialog input[type=text]{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:16px;-webkit-user-select:text;user-select:text}
 #libList{max-height:46vh;overflow:auto;margin-top:8px}
 .pitem{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:8px;margin:6px 0;cursor:pointer;background:var(--panel2)}
@@ -100,7 +107,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <button class="btn" id="bNew" title="Proiect nou"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 1.5h5l3.5 3.5v9.5h-8.500z"/><path d="M9 1.5v3.500h3.500"/></svg><span class="lbl"> Nou</span></button>
   <button class="btn" id="bLib" title="Proiecte salvate"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" style="vertical-align:-2px"><path d="M1.500 4v8.500h13V5.500H8L6.500 3.500h-5z"/></svg><span class="lbl"> Proiecte</span></button>
   <button class="btn" id="bAdd">＋<span class="lbl"> Imagini</span></button>
-  <button class="btn" id="bText">T<span class="lbl"> Text</span></button>
+  <button class="btn" id="bEl" title="Text, forme și stickere"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" style="vertical-align:-2px"><rect x="1.500" y="6.500" width="8" height="8" rx="1"/><circle cx="10.500" cy="5.500" r="4"/></svg><span class="lbl"> Elemente</span></button>
   <button class="btn icon" id="bUndo">↶</button>
   <button class="btn icon" id="bRedo">↷</button>
   <div class="sp"></div>
@@ -131,7 +138,17 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <div class="row"><label>Calitate JPG</label><input type="range" id="dlQ" min="0.6" max="1" step="0.01" value="0.95"><span id="dlQv">95%</span></div>
   <div class="row"><label>Rezoluție</label><select id="dlK"><option value="1">1080 px lățime (Instagram)</option><option value="2">2160 px lățime (2×)</option></select></div>
   <div class="row"><label>Împachetare</label><select id="dlZip"><option value="1">Un singur fișier ZIP</option><option value="0">Fișiere separate</option></select></div>
-  <div class="dlgbtns"><button class="btn" data-close>Renunță</button><button class="btn primary" id="dlGo" autofocus>Descarcă</button></div>
+  <h3>Video cu derulare automată</h3>
+  <div class="row"><label>Viteză</label><select id="dlSpeed"><option value="2.4">Lentă</option><option value="1.6" selected>Normală</option><option value="1">Rapidă</option></select></div>
+  <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" data-close>Renunță</button><button class="btn" id="dlVideo">Salvează ca video</button><button class="btn primary" id="dlGo" autofocus>Descarcă</button></div>
+</dialog>
+
+<dialog id="dlgEl">
+  <h2>Adaugă element</h2>
+  <h3>Text</h3><div class="grid2" id="elText" style="grid-template-columns:1fr 1fr 1fr"></div>
+  <h3>Forme</h3><div class="egrid" id="elShapes"></div>
+  <h3>Stickere</h3><div class="egrid" id="elEmoji"></div>
+  <div class="dlgbtns"><button class="btn" data-close>Închide</button></div>
 </dialog>
 
 <dialog id="dlgNew">
@@ -178,7 +195,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 5;                                        // bumped by publish.sh
+const APP_VERSION = 6;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
@@ -296,23 +313,109 @@ async function addFiles(files, at){
 
 /* ---------- text ---------- */
 function fontOf(e){ return (e.italic ? 'italic ' : '') + (e.bold ? '700 ' : '400 ') + e.size + 'px "' + e.font + '", sans-serif'; }
+const glyphs = l => Array.from(l);
+function lineW(c, l, ls){                 // width of one line, with optional letter spacing
+  if (!ls) return c.measureText(l).width;
+  const g = glyphs(l); let w = 0; for (const ch of g) w += c.measureText(ch).width;
+  return w + ls * Math.max(0, g.length - 1);
+}
 function measure(e){
   mctx.font = fontOf(e);
   const lines = e.text.split('\n');
-  const w = Math.max(20, ...lines.map(l => mctx.measureText(l).width)), h = lines.length * e.size * e.lh;
+  const w = Math.max(20, ...lines.map(l => lineW(mctx, l, e.ls || 0))), h = lines.length * e.size * e.lh;
   if (e.w != null){ if (e.align === 'center') e.x += (e.w - w) / 2; else if (e.align === 'right') e.x += e.w - w; }
   e.w = w; e.h = h;
 }
-function addText(){
-  const c = viewCenter();
-  const e = {id:uid(), type:'text', text:'Textul tău', font:FONTS[0], size:110, color:'#111111', bold:true, italic:false, align:'center', lh:1.15, x:0, y:0, w:null, h:null, rot:0, opacity:1, shadow:false};
-  measure(e); e.x = c.x - e.w / 2; e.y = c.y - e.h / 2;
+const TEXT_STYLES = [
+  {n:'Titlu', o:{size:140, bold:true}},
+  {n:'Subtitlu', o:{size:72, bold:false}},
+  {n:'Etichetă', o:{size:64, bold:true, color:'#ffffff', bg:true, bgc:'#111111'}},
+  {n:'Contur', o:{size:150, bold:true, color:'#ffffff', ow:6, oc:'#111111'}},
+  {n:'Spațiat', o:{size:54, bold:false, ls:14, text:'TEXTUL TĂU'}},
+  {n:'Caligrafic', o:{size:130, bold:false, italic:true, font:['Snell Roundhand','Segoe Script','Bradley Hand','Ink Free'].find(f => FONTS.includes(f)) || FONTS[0]}},
+];
+const EMOJI = ['❤️','✨','⭐','🌸','🌿','☀️','🌙','☁️','🔥','💫','🎉','🎈','🎁','📍','📷','✈️','🏝️','🌊','🏔️','🌅','🍃','🌹','🌻','🦋','🐚','🍷','☕','🍰','💍','💐','👰','🤵','🥂','💌','🕊️','🎶','💬','👉','✅','❌','💯','🆕','🔝','➡️','⬇️','😍','😂','🥰'];
+function place(e){                        // put a new element in the middle of what is on screen
+  const c = viewCenter(); e.x = c.x - e.w / 2; e.y = c.y - e.h / 2;
   state.els.push(e); sel = e.id; commit(); refreshPanel(); render();
+}
+function addText(style){
+  const e = Object.assign({id:uid(), type:'text', text:'Textul tău', font:FONTS[0], size:110, color:'#111111', bold:true, italic:false, align:'center', lh:1.15, ls:0, ow:0, oc:'#111111', bg:false, bgc:'#111111', x:0, y:0, w:null, h:null, rot:0, opacity:1, shadow:false}, style || {});
+  measure(e); place(e);
   const ta = panel.querySelector('textarea'); if (ta && !COARSE){ ta.focus(); ta.select(); }   // on phones the keyboard would cover the canvas
 }
 
-/* ---------- drawing (shared by editor and export) ---------- */
-function drawScene(c, full, scale){
+/* ---------- shapes (also used as photo masks) ---------- */
+const SHAPES = [['rect','Dreptunghi'],['ellipse','Cerc'],['triangle','Triunghi'],['diamond','Romb'],['hex','Hexagon'],['star','Stea'],['burst','Explozie'],['heart','Inimă'],['arch','Arcadă'],['arrow','Săgeată'],['bubble','Balon'],['line','Linie']];
+const MASKS = [['rect','Dreptunghi'],['ellipse','Cerc / oval'],['arch','Arcadă'],['heart','Inimă'],['star','Stea'],['hex','Hexagon'],['diamond','Romb']];
+function poly(c, pts, w, h){ pts.forEach((q, i) => i ? c.lineTo(q[0] * w, q[1] * h) : c.moveTo(q[0] * w, q[1] * h)); c.closePath(); }
+function starPts(n, inner){ const a = []; for (let i = 0; i < n * 2; i++){ const r = i % 2 ? inner : .5, t = -Math.PI / 2 + i * Math.PI / n; a.push([Math.cos(t) * r, Math.sin(t) * r]); } return a; }
+function shapePath(c, kind, w, h, r){     // path centred on 0,0 inside a w x h box
+  c.beginPath();
+  switch (kind){
+    case 'ellipse': c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); break;
+    case 'triangle': poly(c, [[0,-.5],[.5,.5],[-.5,.5]], w, h); break;
+    case 'diamond': poly(c, [[0,-.5],[.5,0],[0,.5],[-.5,0]], w, h); break;
+    case 'hex': poly(c, [[-.25,-.5],[.25,-.5],[.5,0],[.25,.5],[-.25,.5],[-.5,0]], w, h); break;
+    case 'star': poly(c, starPts(5, .2), w, h); break;
+    case 'burst': poly(c, starPts(14, .4), w, h); break;
+    case 'arrow': poly(c, [[-.5,-.18],[.12,-.18],[.12,-.5],[.5,0],[.12,.5],[.12,.18],[-.5,.18]], w, h); break;
+    case 'heart':
+      c.moveTo(0, -.22 * h); c.bezierCurveTo(0, -.5 * h, -.5 * w, -.5 * h, -.5 * w, -.15 * h); c.bezierCurveTo(-.5 * w, .15 * h, -.2 * w, .32 * h, 0, .5 * h);
+      c.bezierCurveTo(.2 * w, .32 * h, .5 * w, .15 * h, .5 * w, -.15 * h); c.bezierCurveTo(.5 * w, -.5 * h, 0, -.5 * h, 0, -.22 * h); c.closePath(); break;
+    case 'arch': { const ry = Math.min(w / 2, h); c.moveTo(-w / 2, h / 2); c.lineTo(-w / 2, -h / 2 + ry); c.ellipse(0, -h / 2 + ry, w / 2, ry, 0, Math.PI, Math.PI * 2); c.lineTo(w / 2, h / 2); c.closePath(); break; }
+    case 'bubble': { const bh = h * .78, rr = Math.min(w, bh) * .22; c.roundRect(-w / 2, -h / 2, w, bh, rr); c.moveTo(-w * .28, -h / 2 + bh - 1); c.lineTo(-w * .34, h / 2); c.lineTo(-w * .04, -h / 2 + bh - 1); c.closePath(); break; }
+    default: c.roundRect(-w / 2, -h / 2, w, h, Math.max(0, Math.min(r || 0, w / 2, h / 2)));
+  }
+}
+function addShape(kind){
+  const size = {line:[640, 14], arrow:[560, 300], bubble:[560, 420], arch:[380, 520]}[kind] || [420, 420];
+  place({id:uid(), type:'shape', kind, x:0, y:0, w:size[0], h:size[1], rot:0, opacity:1, fill:'#ff8552', nofill:false, stroke:'#111111', sw:0, radius:0, shadow:false});
+}
+function shapeIcon(kind){
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  x.translate(32, 32); x.fillStyle = '#e9eaec'; shapePath(x, kind, kind === 'line' ? 50 : 46, kind === 'line' ? 6 : kind === 'arrow' ? 30 : 46, 5); x.fill();
+  return c.toDataURL();
+}
+
+/* ---------- photo filters ----------
+   Applied to a copy of the photo and cached per element: small while a slider is moving, sharper once it is released,
+   and from the full-size photo only for the final export. */
+const FX0 = {br:0, ct:0, sat:0, warm:0, fade:0, sep:0};
+const FX_PRESETS = [['Normal', {}], ['Alb-negru', {sat:-100, ct:12}], ['Sepia', {sep:80, ct:5, fade:10}], ['Cald', {warm:45, sat:10}], ['Rece', {warm:-45, sat:5}], ['Viu', {sat:45, ct:18}], ['Estompat', {fade:55, sat:-20, ct:-10}], ['Dramatic', {ct:45, sat:-25, br:-8}], ['Film', {fade:30, warm:20, ct:10, sat:-10}]];
+const hasFx = e => !!e.fx && Object.keys(FX0).some(k => e.fx[k]);
+const fxCache = new Map(); let fxLow = false;
+function applyFx(d, f){
+  const sat = 1 + f.sat / 100, sep = f.sep / 100, br = 1 + f.br / 100 * .6, ct = 1 + f.ct / 100, fade = f.fade / 100, wm = f.warm / 100 * 28, cross = sat !== 1 || sep > 0;
+  const lut = shift => { const t = new Uint8ClampedArray(256); for (let i = 0; i < 256; i++){ const v = (i * br - 128) * ct + 128 + shift; t[i] = v * (1 - fade * .28) + fade * 46; } return t; };
+  const R = lut(wm), G = lut(0), B = lut(-wm);
+  for (let i = 0; i < d.length; i += 4){
+    let r = d[i], g = d[i + 1], b = d[i + 2];
+    if (cross){
+      const l = .299 * r + .587 * g + .114 * b;
+      r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
+      if (sep){ const m = .299 * r + .587 * g + .114 * b; r += (m * 1.08 - r) * sep; g += (m * .88 - g) * sep; b += (m * .66 - b) * sep; }
+      r = r < 0 ? 0 : r > 255 ? 255 : r | 0; g = g < 0 ? 0 : g > 255 ? 255 : g | 0; b = b < 0 ? 0 : b > 255 ? 255 : b | 0;
+    }
+    d[i] = R[r]; d[i + 1] = G[g]; d[i + 2] = B[b];
+  }
+}
+function fxSource(e, im, full){
+  if (!hasFx(e)) return full ? im.full : im.prev;
+  const res = full ? 'F' : fxLow ? 'L' : 'P', key = e.img + JSON.stringify(e.fx), hit = fxCache.get(e.id + res);
+  if (hit && hit.key === key) return hit.cv;
+  const base = full ? im.full : im.prev, bw = base.naturalWidth || base.width, bh = base.naturalHeight || base.height;
+  const k = Math.min(1, (full ? 4096 : fxLow ? 640 : 1400) / Math.max(bw, bh)), cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(bw * k)); cv.height = Math.max(1, Math.round(bh * k));
+  const x = cv.getContext('2d', {willReadFrequently:true}); x.drawImage(base, 0, 0, cv.width, cv.height);
+  const d = x.getImageData(0, 0, cv.width, cv.height); applyFx(d.data, Object.assign({}, FX0, e.fx)); x.putImageData(d, 0, 0);
+  fxCache.set(e.id + res, {key, cv}); return cv;
+}
+function dropFullFx(){ for (const k of [...fxCache.keys()]) if (k.endsWith('F')) fxCache.delete(k); }
+
+/* ---------- drawing (shared by editor and export) ----------
+   mode 0 = editor (shows empty cells), 1 = final export (full-size photos), 2 = preview/video (export look, lighter photos) */
+function drawScene(c, mode, scale){
   const w = W(), h = H(), b = state.bg;
   if (b.type === 'solid') c.fillStyle = b.c1;
   else{
@@ -324,40 +427,71 @@ function drawScene(c, full, scale){
   for (const e of state.els){
     c.save();
     c.translate(e.x + e.w / 2, e.y + e.h / 2); c.rotate(e.rot * Math.PI / 180); c.globalAlpha = e.opacity;
-    if (e.type === 'image') drawImageEl(c, e, full, scale); else drawTextEl(c, e, scale);
+    if (e.type === 'image') drawImageEl(c, e, mode, scale); else if (e.type === 'shape') drawShapeEl(c, e, scale); else drawTextEl(c, e, scale);
     c.restore();
   }
 }
-function drawImageEl(c, e, full, scale){
-  const im = images.get(e.img), w = e.w, h = e.h, r = Math.min(e.radius, w / 2, h / 2);
+function dropShadow(c, scale){ c.shadowColor = 'rgba(0,0,0,.38)'; c.shadowBlur = 46 * scale; c.shadowOffsetY = 18 * scale; }
+function drawImageEl(c, e, mode, scale){
+  const im = images.get(e.img), w = e.w, h = e.h, mask = e.mask || 'rect', frame = e.frame || 'none';
   if (!im){
-    if (full) return;
+    if (mode) return;
     const u = (window.devicePixelRatio || 1) / scale, k = Math.min(w, h) * .09;
-    c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, r); c.fillStyle = 'rgba(128,128,128,.2)'; c.fill();
+    shapePath(c, mask, w, h, e.radius); c.fillStyle = 'rgba(128,128,128,.2)'; c.fill();
     c.setLineDash([8 * u, 6 * u]); c.lineWidth = 1.5 * u; c.strokeStyle = 'rgba(128,128,128,.9)'; c.stroke(); c.setLineDash([]);
     c.beginPath(); c.moveTo(-k, 0); c.lineTo(k, 0); c.moveTo(0, -k); c.lineTo(0, k); c.lineWidth = 3 * u; c.stroke();
     return;
   }
-  c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, r);
-  if (e.shadow && e.opacity >= 1){ c.save(); c.shadowColor = 'rgba(0,0,0,.38)'; c.shadowBlur = 46 * scale; c.shadowOffsetY = 18 * scale; c.fillStyle = '#000'; c.fill(); c.restore(); }
+  const shadow = e.shadow && e.opacity >= 1;
+  let ix = -w / 2, iy = -h / 2, iw = w, ih = h;                       // box the photo itself is drawn in
+  if (frame !== 'none'){
+    c.save(); if (shadow) dropShadow(c, scale);
+    c.fillStyle = frame === 'polaroid' ? '#fdfdfb' : '#0c0c0c'; c.fillRect(-w / 2, -h / 2, w, h); c.restore();
+    if (frame === 'polaroid'){ const m = Math.min(w, h) * .06; ix += m; iy += m; iw -= 2 * m; ih -= m + h * .2; }
+    else {                                                            // film strip: dark bars with sprocket holes
+      const bar = h * .11, n = Math.max(4, Math.round(w / (bar * .9))); iy += bar; ih -= 2 * bar; c.fillStyle = '#f4f4f0';
+      for (let i = 0; i < n; i++) for (const hy of [-h / 2 + bar * .25, h / 2 - bar * .75]){ c.beginPath(); c.roundRect(-w / 2 + (i + .25) * w / n, hy, w / n * .5, bar * .5, bar * .12); c.fill(); }
+    }
+  }
+  c.save(); c.translate(ix + iw / 2, iy + ih / 2);
+  shapePath(c, mask, iw, ih, e.radius);
+  if (shadow && frame === 'none'){ c.save(); dropShadow(c, scale); c.fillStyle = '#000'; c.fill(); c.restore(); }
   c.save(); c.clip();
   if (e.flip) c.scale(-1, 1);
-  const src = full ? im.full : im.prev, k = (src.naturalWidth || src.width) / im.w;
-  const s = Math.max(w / im.w, h / im.h) * e.cz, sw = w / s, sh = h / s;
+  const src = fxSource(e, im, mode === 1), k = (src.naturalWidth || src.width) / im.w;
+  const s = Math.max(iw / im.w, ih / im.h) * e.cz, sw = iw / s, sh = ih / s;
   c.imageSmoothingQuality = 'high';
-  c.drawImage(src, (im.w - sw) * e.cx * k, (im.h - sh) * e.cy * k, sw * k, sh * k, -w / 2, -h / 2, w, h);
-  c.restore();
-  if (e.border > 0){
-    const bw = Math.min(e.border, w / 2, h / 2);
-    c.beginPath(); c.roundRect(-w / 2 + bw / 2, -h / 2 + bw / 2, w - bw, h - bw, Math.max(0, r - bw / 2));
-    c.lineWidth = bw; c.strokeStyle = e.borderColor; c.stroke();
+  c.drawImage(src, (im.w - sw) * e.cx * k, (im.h - sh) * e.cy * k, sw * k, sh * k, -iw / 2, -ih / 2, iw, ih);
+  if (e.border > 0){                                                  // stroke kept inside the shape by the clip
+    if (e.flip) c.scale(-1, 1);
+    shapePath(c, mask, iw, ih, e.radius); c.lineWidth = Math.min(e.border, iw / 2, ih / 2) * 2; c.strokeStyle = e.borderColor; c.stroke();
   }
+  c.restore(); c.restore();
+}
+function drawShapeEl(c, e, scale){
+  shapePath(c, e.kind, e.w, e.h, e.radius);
+  if (e.shadow && e.opacity >= 1 && !e.nofill) dropShadow(c, scale);
+  if (!e.nofill){ c.fillStyle = e.fill; c.fill(); }
+  c.shadowColor = 'transparent';
+  const sw = Math.max(e.sw || 0, e.nofill ? 6 : 0);
+  if (sw > 0){ c.lineJoin = 'round'; c.lineWidth = sw; c.strokeStyle = e.nofill && !(e.sw > 0) ? e.fill : e.stroke; c.stroke(); }
 }
 function drawTextEl(c, e, scale){
-  c.font = fontOf(e); c.fillStyle = e.color; c.textBaseline = 'middle'; c.textAlign = e.align;
+  c.font = fontOf(e); c.textBaseline = 'middle';
+  const lines = e.text.split('\n'), lh = e.size * e.lh, ls = e.ls || 0, ow = e.ow || 0;
+  if (e.bg){ const pad = e.size * .3; c.save(); c.fillStyle = e.bgc || '#111111'; c.beginPath(); c.roundRect(-e.w / 2 - pad, -e.h / 2 - pad * .55, e.w + 2 * pad, e.h + pad * 1.1, e.size * .16); c.fill(); c.restore(); }
   if (e.shadow){ c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = e.size * .16 * scale; c.shadowOffsetY = e.size * .04 * scale; }
-  const x = e.align === 'left' ? -e.w / 2 : e.align === 'right' ? e.w / 2 : 0;
-  e.text.split('\n').forEach((l, i) => c.fillText(l, x, -e.h / 2 + (i + .5) * e.size * e.lh));
+  c.fillStyle = e.color; c.strokeStyle = e.oc || '#111111'; c.lineWidth = ow * 2; c.lineJoin = 'round';
+  lines.forEach((l, i) => {
+    const y = -e.h / 2 + (i + .5) * lh;
+    if (!ls){
+      c.textAlign = e.align; const x = e.align === 'left' ? -e.w / 2 : e.align === 'right' ? e.w / 2 : 0;
+      if (ow) c.strokeText(l, x, y); c.fillText(l, x, y); return;
+    }
+    c.textAlign = 'left';
+    const lw = lineW(c, l, ls), x0 = e.align === 'left' ? -e.w / 2 : e.align === 'right' ? e.w / 2 - lw : -lw / 2;
+    for (const pass of ow ? [1, 0] : [0]){ let x = x0; for (const ch of glyphs(l)){ pass ? c.strokeText(ch, x, y) : c.fillText(ch, x, y); x += c.measureText(ch).width + ls; } }
+  });
 }
 
 /* ---------- editor view ---------- */
@@ -397,7 +531,7 @@ function world2local(e, x, y){
 }
 function handlesOf(e){
   const hs = [{hx:-1,hy:-1},{hx:1,hy:-1},{hx:1,hy:1},{hx:-1,hy:1}];
-  if (e.type === 'image') hs.push({hx:0,hy:-1},{hx:1,hy:0},{hx:0,hy:1},{hx:-1,hy:0});
+  if (e.type !== 'text') hs.push({hx:0,hy:-1},{hx:1,hy:0},{hx:0,hy:1},{hx:-1,hy:0});
   for (const h of hs) h.s = w2s(...local2world(e, h.hx * e.w / 2, h.hy * e.h / 2));
   hs.push({rot:true, s:w2s(...local2world(e, 0, -e.h / 2 - 30 / view.z))});
   return hs;
@@ -636,6 +770,7 @@ function act(a){
   if (a === 'new') return leave(newProject);
   if (!e) return;
   if (a === 'pick') return pickImage(e.id);
+  if (a.startsWith('fx:')) e.fx = Object.assign({}, FX0, FX_PRESETS[+a.slice(3)][1]);
   if (a === 'del'){ state.els.splice(i, 1); sel = null; }
   if (a === 'dup'){ const c = JSON.parse(JSON.stringify(e)); c.id = uid(); c.x += 60; c.y += 60; state.els.push(c); sel = c.id; }
   if (a === 'front'){ state.els.splice(i, 1); state.els.push(e); }
@@ -775,11 +910,24 @@ function refreshPanel(){
   } else {
     const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">Șterge</button></div>`;
     if (e.type === 'image'){
+      const fx = Object.assign({}, FX0, e.fx);
       h += `<h3>Imagine</h3><div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
       <h3>Decupaj</h3>${rng('Zoom', 'cz', 1, 4, 0.01, e.cz)}${rng('Orizontal', 'cx', 0, 1, 0.005, e.cx)}${rng('Vertical', 'cy', 0, 1, 0.005, e.cy)}
+      <h3>Filtru</h3><div class="seg chips">${FX_PRESETS.map(([n, v], i) => `<button class="btn ${JSON.stringify(Object.assign({}, FX0, v)) === JSON.stringify(fx) ? 'on' : ''}" data-act="fx:${i}">${n}</button>`).join('')}</div>
+      ${rng('Luminozitate', 'br', -100, 100, 1, fx.br, 'fx')}${rng('Contrast', 'ct', -100, 100, 1, fx.ct, 'fx')}${rng('Saturație', 'sat', -100, 100, 1, fx.sat, 'fx')}${rng('Căldură', 'warm', -100, 100, 1, fx.warm, 'fx')}${rng('Estompare', 'fade', 0, 100, 1, fx.fade, 'fx')}
+      <h3>Formă și ramă</h3>
+      <div class="row"><label>Formă</label><select data-o="el" data-k="mask">${MASKS.map(([k, n]) => `<option value="${k}" ${k === (e.mask || 'rect') ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div class="row"><label>Ramă</label><select data-o="el" data-k="frame">${[['none','Fără'],['polaroid','Polaroid'],['film','Film']].map(([k, n]) => `<option value="${k}" ${k === (e.frame || 'none') ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <h3>Aspect</h3>${rng('Opacitate', 'opacity', 0.05, 1, 0.01, e.opacity)}${rng('Colțuri', 'radius', 0, 400, 1, e.radius)}${rng('Chenar', 'border', 0, 80, 1, e.border)}
       <div class="row"><label>Culoare chenar</label><input type="color" data-o="el" data-k="borderColor" value="${e.borderColor}"></div>
       ${chk('Umbră', 'shadow', e.shadow)}${rng('Rotire', 'rot', -180, 180, 1, e.rot)}<h3>Strat</h3>${common}`;
+    } else if (e.type === 'shape'){
+      h += `<h3>Formă</h3>
+      <div class="row"><label>Tip</label><select data-o="el" data-k="kind">${SHAPES.map(([k, n]) => `<option value="${k}" ${k === e.kind ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div class="row"><label>Culoare</label><input type="color" data-o="el" data-k="fill" value="${e.fill}"></div>
+      ${chk('Doar contur', 'nofill', e.nofill)}${rng('Contur', 'sw', 0, 60, 1, e.sw)}
+      <div class="row"><label>Culoare contur</label><input type="color" data-o="el" data-k="stroke" value="${e.stroke}"></div>
+      ${e.kind === 'rect' || e.kind === 'line' ? rng('Colțuri', 'radius', 0, 400, 1, e.radius) : ''}${rng('Opacitate', 'opacity', 0.05, 1, 0.01, e.opacity)}${chk('Umbră', 'shadow', e.shadow)}${rng('Rotire', 'rot', -180, 180, 1, e.rot)}<h3>Strat</h3>${common}`;
     } else {
       h += `<h3>Text</h3><textarea data-o="el" data-k="text">${esc(e.text)}</textarea>
       <div class="row"><label>Font</label><select data-o="el" data-k="font">${(FONTS.includes(e.font) ? FONTS : [e.font, ...FONTS]).map(f => `<option ${f === e.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
@@ -787,14 +935,18 @@ function refreshPanel(){
       <div class="row"><label>Culoare</label><input type="color" data-o="el" data-k="color" value="${e.color}"></div>
       <div class="row"><label>Aliniere</label><select data-o="el" data-k="align"><option value="left" ${e.align === 'left' ? 'selected' : ''}>Stânga</option><option value="center" ${e.align === 'center' ? 'selected' : ''}>Centru</option><option value="right" ${e.align === 'right' ? 'selected' : ''}>Dreapta</option></select></div>
       ${chk('Îngroșat', 'bold', e.bold)}${chk('Cursiv', 'italic', e.italic)}${chk('Umbră', 'shadow', e.shadow)}
-      ${rng('Spațiu rânduri', 'lh', 0.8, 2.2, 0.01, e.lh)}${rng('Opacitate', 'opacity', 0.05, 1, 0.01, e.opacity)}${rng('Rotire', 'rot', -180, 180, 1, e.rot)}<h3>Strat</h3>${common}`;
+      ${rng('Spațiu rânduri', 'lh', 0.8, 2.2, 0.01, e.lh)}${rng('Spațiu litere', 'ls', -5, 60, 1, e.ls || 0)}
+      ${rng('Contur', 'ow', 0, 30, 1, e.ow || 0)}<div class="row"><label>Culoare contur</label><input type="color" data-o="el" data-k="oc" value="${e.oc || '#111111'}"></div>
+      ${chk('Fundal', 'bg', e.bg)}<div class="row"><label>Culoare fundal</label><input type="color" data-o="el" data-k="bgc" value="${e.bgc || '#111111'}"></div>
+      ${rng('Opacitate', 'opacity', 0.05, 1, 0.01, e.opacity)}${rng('Rotire', 'rot', -180, 180, 1, e.rot)}<h3>Strat</h3>${common}`;
     }
   }
   panel.innerHTML = h; syncButtons();
 }
 panel.addEventListener('input', ev => {
   const t = ev.target, k = t.dataset.k; if (!k) return;
-  const obj = t.dataset.o === 'bg' ? state.bg : t.dataset.o === 'state' ? state : getSel(); if (!obj) return;
+  let obj = t.dataset.o === 'bg' ? state.bg : t.dataset.o === 'state' ? state : getSel(); if (!obj) return;
+  if (t.dataset.o === 'fx'){ obj = obj.fx || (obj.fx = Object.assign({}, FX0)); fxLow = true; }   // quick low-res preview while dragging
   obj[k] = t.type === 'checkbox' ? t.checked : (t.type === 'range' || t.type === 'number') ? (parseFloat(t.value) || 0) : t.value;
   if (obj.type === 'text'){ obj.size = clamp(obj.size, 8, 2000); measure(obj); }
   if (obj === state && state.tpl != null){ collage(state.tpl, true); return; }   // spacing/corners re-flow the current collage
@@ -802,14 +954,15 @@ panel.addEventListener('input', ev => {
 });
 panel.addEventListener('change', ev => {
   if (!ev.target.dataset.k) return;
-  commit(); if (ev.target.dataset.k === 'type') refreshPanel();
+  if (fxLow){ fxLow = false; render(); }
+  commit(); if (['type', 'kind'].includes(ev.target.dataset.k) || ev.target.dataset.o === 'fx') refreshPanel();
 });
 panel.addEventListener('click', ev => { const b = ev.target.closest('[data-act]'); if (b) act(b.dataset.act); });
 
 /* ---------- export ---------- */
-async function renderFrame(i, k, type, q){
+async function renderFrame(i, k, type, q, mode = 1){
   const c = document.createElement('canvas'); c.width = FW * k; c.height = Math.round(H() * k);
-  const x = c.getContext('2d'); x.scale(k, k); x.translate(-i * FW, 0); drawScene(x, true, k);
+  const x = c.getContext('2d'); x.scale(k, k); x.translate(-i * FW, 0); drawScene(x, mode, k);
   return new Promise(r => c.toBlob(r, type, q));
 }
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -859,12 +1012,36 @@ async function download(){
     else for (const it of items){ saveBlob(it.blob, it.name); await new Promise(r => setTimeout(r, 350)); }
     $('dlgDl').close(); if (!NATIVE) toast('Gata — ' + state.frames + ' cadre exportate');
   }catch(e){ if (!/cancel/i.test(String(e && e.message))) toast('Eroare la export: ' + (e && e.message)); }
-  btn.disabled = false; btn.textContent = DL_LABEL;
+  dropFullFx(); btn.disabled = false; btn.textContent = DL_LABEL;
+}
+/* Scrolling video: records the strip sliding past a one-frame window. MP4 where the browser can (Safari, iPhone app), WebM otherwise. */
+function videoType(){ return window.MediaRecorder ? ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t)) : null; }
+async function exportVideo(){
+  const type = videoType(), btn = $('dlVideo');
+  if (!type || !HTMLCanvasElement.prototype.captureStream){ toast('Acest dispozitiv nu poate înregistra video'); return; }
+  if (state.frames < 2){ toast('Pentru video ai nevoie de cel puțin 2 cadre'); return; }
+  const hold = 700, travel = (state.frames - 1) * parseFloat($('dlSpeed').value) * 1000, total = travel + hold * 2, maxX = W() - FW;
+  const c = document.createElement('canvas'); c.width = FW; c.height = H(); const x = c.getContext('2d');
+  const draw = t => { x.setTransform(1, 0, 0, 1, 0, 0); x.translate(-maxX * clamp((t - hold) / travel, 0, 1), 0); drawScene(x, 2, 1); };
+  draw(0);
+  const stream = c.captureStream(30), rec = new MediaRecorder(stream, {mimeType:type, videoBitsPerSecond:8e6}), chunks = [];
+  rec.ondataavailable = ev => { if (ev.data.size) chunks.push(ev.data); };
+  const stopped = new Promise(r => rec.onstop = r);
+  btn.disabled = true; rec.start(); const t0 = performance.now();
+  await new Promise(res => { const tick = () => { const t = performance.now() - t0; draw(t); btn.textContent = 'Se înregistrează ' + Math.min(100, Math.round(t / total * 100)) + '%…'; t < total ? requestAnimationFrame(tick) : res(); }; requestAnimationFrame(tick); });
+  rec.stop(); await stopped; stream.getTracks().forEach(t => t.stop());
+  const ext = type.includes('mp4') ? 'mp4' : 'webm', blob = new Blob(chunks, {type:type.split(';')[0]});
+  try{
+    $('dlgDl').close();
+    if (NATIVE) await nativeShare([{name:'carusel.' + ext, blob}], 'Carusel video');
+    else { saveBlob(blob, 'carusel.' + ext); toast(ext === 'mp4' ? 'Video salvat' : 'Video salvat ca WebM. Pentru MP4 (cerut de Instagram) exportă din Safari sau din aplicația de iPhone.'); }
+  }catch(e){ if (!/cancel/i.test(String(e && e.message))) toast('Eroare la export: ' + (e && e.message)); }
+  btn.disabled = false; btn.textContent = 'Salvează ca video';
 }
 async function preview(){
   const strip = $('pvStrip'); strip.innerHTML = ''; $('dlgPv').showModal();
   for (let i = 0; i < state.frames; i++){
-    const im = new Image(); im.src = URL.createObjectURL(await renderFrame(i, 0.5, 'image/jpeg', 0.85)); strip.appendChild(im);
+    const im = new Image(); im.src = URL.createObjectURL(await renderFrame(i, 0.5, 'image/jpeg', 0.85, 2)); strip.appendChild(im);
   }
   strip.scrollLeft = 0; pvInfo();
 }
@@ -964,7 +1141,16 @@ $('bLib').onclick = showLib;
 $('bAdd').onclick = () => { pickFor = null; $('fImg').click(); };
 $('fImg').addEventListener('change', ev => { addFiles(ev.target.files); ev.target.value = ''; });
 $('bNew').onclick = () => act('new');
-$('bText').onclick = addText;
+$('bEl').onclick = () => { $('dlgEl').showModal(); $('dlgEl').scrollTop = 0; if (document.activeElement) document.activeElement.blur(); };
+$('elText').innerHTML = TEXT_STYLES.map((t, i) => `<button class="btn" data-t="${i}">${t.n}</button>`).join('');
+$('elShapes').innerHTML = SHAPES.map(([k, n]) => `<button class="btn" data-s="${k}" title="${n}"><img src="${shapeIcon(k)}" alt="${n}"></button>`).join('');
+$('elEmoji').innerHTML = EMOJI.map(m => `<button class="btn" data-e="${m}">${m}</button>`).join('');
+$('dlgEl').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b || b.dataset.close != null) return;
+  $('dlgEl').close();
+  if (b.dataset.t != null) addText(TEXT_STYLES[+b.dataset.t].o); else if (b.dataset.s) addShape(b.dataset.s); else if (b.dataset.e) addText({text:b.dataset.e, size:240, bold:false});
+});
+$('dlVideo').onclick = exportVideo;
 $('bUndo').onclick = () => travel(-1);
 $('bRedo').onclick = () => travel(1);
 $('bZo').onclick = () => setZoom(view.z / 1.25);
