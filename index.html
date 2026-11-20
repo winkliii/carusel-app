@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Carusel Studio</title>
+<style>
+:root{
+  --bg:#141518; --panel:#1c1e22; --panel2:#24272c; --line:#33373e; --text:#e9eaec; --muted:#9aa0a8;
+  --accent:#ff8552; --accent-ink:#1a0d06; --stage:#0d0e10; --radius:8px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);background:var(--panel);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden;-webkit-user-select:none;user-select:none}
+button,select,input,textarea{font:inherit;color:inherit}
+header{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header .brand{font-weight:700;letter-spacing:.02em;margin-right:8px}
+header .brand span{color:var(--accent)}
+.sp{flex:1}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:7px 11px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#555b64}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.danger{color:#ff8a8a}
+.btn.icon{padding:7px 9px;min-width:34px;text-align:center}
+.zoomlbl{min-width:44px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
+main{flex:1;display:flex;min-height:0}
+.stage{flex:1;position:relative;background:var(--stage);min-width:0}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#scroller{position:absolute;inset:0;overflow:auto;touch-action:pan-x pan-y;-webkit-tap-highlight-color:transparent}
+#bPanel{display:none}
+#hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;color:#6d737c;font-size:15px;text-align:center;padding:24px}
+.stage.drop::after{content:"";position:absolute;inset:10px;border:2px dashed var(--accent);border-radius:12px;pointer-events:none}
+aside{width:290px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:14px;-webkit-user-select:none}
+aside h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;font-weight:600}
+aside h3:first-child{margin-top:0}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0}
+.row label{flex:0 0 96px;color:var(--muted)}
+.row input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.row input[type=number],.row select,textarea{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+textarea{width:100%;min-height:74px;resize:vertical;-webkit-user-select:text;user-select:text}
+input[type=color]{width:38px;height:28px;padding:0;border:1px solid var(--line);border-radius:6px;background:none}
+input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg .btn{flex:1;padding:7px 4px;text-align:center}
+.seg .btn.on{border-color:var(--accent);color:var(--accent)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tpl{display:flex;flex-direction:column;gap:6px}
+.tpl .btn{text-align:left;white-space:normal}
+.tpl small{display:block;color:var(--muted);margin-top:2px}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.cgrid .btn{padding:6px 6px 5px;white-space:normal;font-size:11px;line-height:1.25;color:var(--muted);text-align:center}
+.cgrid .btn.on{border-color:var(--accent);color:var(--accent)}
+.cgrid svg{display:block;width:100%;height:auto;margin-bottom:4px;color:var(--text);background:var(--bg);border-radius:3px}
+.seg{margin-bottom:2px}
+.tip{color:var(--muted);font-size:12px;margin-top:14px;line-height:1.5}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 4px;font:11px ui-monospace,Menlo,monospace}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:18px;max-width:min(92vw,520px)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 12px;font-size:16px}
+.dlgbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+#pvStrip{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;width:min(80vw,360px);border-radius:6px;background:#000;scrollbar-width:none}
+#pvStrip::-webkit-scrollbar{display:none}
+#pvStrip img{flex:0 0 100%;width:100%;scroll-snap-align:start;display:block}
+#pvInfo{text-align:center;color:var(--muted);margin-top:8px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000c;border:1px solid var(--line);padding:9px 14px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+#toast.on{opacity:1}
+@media (max-width:760px){
+  main{flex-direction:column}
+  aside{width:auto;border-left:0;border-top:1px solid var(--line);max-height:40vh;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+  body.nopanel aside{display:none}
+  header{flex-wrap:nowrap;gap:6px;padding:6px 8px}
+  header .brand,.lbl,.zoomlbl,#bZo,#bZi{display:none}
+  #bPanel{display:inline-block}
+  #bPanel.on{border-color:var(--accent);color:var(--accent)}
+  .btn{padding:9px 12px;font-size:15px}
+  aside .btn{font-size:13px}
+  .cgrid{grid-template-columns:1fr 1fr 1fr}
+  aside .cgrid .btn{font-size:11px}
+  .row input[type=number],.row select,textarea{font-size:16px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Carusel<span>Studio</span></div>
+  <button class="btn" id="bAdd">＋<span class="lbl"> Imagini</span></button>
+  <button class="btn" id="bText">T<span class="lbl"> Text</span></button>
+  <button class="btn icon" id="bUndo">↶</button>
+  <button class="btn icon" id="bRedo">↷</button>
+  <div class="sp"></div>
+  <button class="btn icon" id="bZo" title="Micșorează">−</button>
+  <span class="zoomlbl" id="zl">100%</span>
+  <button class="btn icon" id="bZi" title="Mărește">＋</button>
+  <button class="btn" id="bFit" title="Potrivește pe ecran">⤢<span class="lbl"> Potrivește</span></button>
+  <button class="btn" id="bPrev">▶<span class="lbl"> Previzualizare</span></button>
+  <button class="btn on" id="bPanel" title="Arată/ascunde setările">☰</button>
+  <button class="btn primary" id="bDl">↓<span class="lbl"> Descarcă</span></button>
+</header>
+<main>
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hint"></div>
+    <div id="scroller"><div id="spacer"></div></div>
+  </div>
+  <aside id="panel"></aside>
+</main>
+
+<input type="file" id="fImg" accept="image/*" multiple hidden>
+<input type="file" id="fProj" accept=".json,application/json" hidden>
+
+<dialog id="dlgDl">
+  <h2 id="dlTitle">Descarcă cadrele</h2>
+  <div class="row"><label>Format fișier</label><select id="dlType"><option value="image/jpeg">JPG (recomandat)</option><option value="image/png">PNG</option></select></div>
+  <div class="row"><label>Calitate JPG</label><input type="range" id="dlQ" min="0.6" max="1" step="0.01" value="0.95"><span id="dlQv">95%</span></div>
+  <div class="row"><label>Rezoluție</label><select id="dlK"><option value="1">1080 px lățime (Instagram)</option><option value="2">2160 px lățime (2×)</option></select></div>
+  <div class="row"><label>Împachetare</label><select id="dlZip"><option value="1">Un singur fișier ZIP</option><option value="0">Fișiere separate</option></select></div>
+  <div class="dlgbtns"><button class="btn" data-close>Renunță</button><button class="btn primary" id="dlGo" autofocus>Descarcă</button></div>
+</dialog>
+
+<dialog id="dlgPv">
+  <h2>Așa va arăta la glisare</h2>
+  <div id="pvStrip"></div>
+  <div id="pvInfo"></div>
+  <div class="dlgbtns"><button class="btn" data-close>Închide</button></div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ---------- model ---------- */
+const FW = 1080, MAXF = 20, PAD = 44;
+const FORMATS = {'4:5':1350, '3:4':1440, '1:1':1080, '9:16':1920};
+const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','Futura','Gill Sans','Verdana','Tahoma','Trebuchet MS','Bahnschrift','Georgia','Times New Roman','Cambria','Constantia','Palatino Linotype','Garamond','Didot','Baskerville','Courier New','Consolas','Impact','Comic Sans MS','Snell Roundhand','Segoe Script','Bradley Hand','Segoe Print','Ink Free','Marker Felt'];
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
+const COARSE = matchMedia('(pointer:coarse)').matches;
+const APP_VERSION = 1;                                        // bumped by publish.sh
+const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
+const DL_LABEL = NATIVE ? 'Salvează / Partajează' : 'Descarcă';
+const KEY = IS_MAC ? {mod:'⌘', alt:'⌥', shift:'⇧'} : {mod:'Ctrl', alt:'Alt', shift:'Shift'};
+const fresh = () => ({format:'4:5', frames:3, bg:{type:'solid', c1:'#ffffff', c2:'#f1d9c4', angle:0}, gap:30, rad:0, tpl:null, els:[]});
+let state = fresh();
+let sel = null;
+const images = new Map();           // id -> {blob, full, prev, w, h}
+const view = {z:0.4, offX:PAD, offY:PAD};
+let drag = null, tap = null, pinch = null, hist = [], hi = -1;
+
+const $ = id => document.getElementById(id);
+const sc = $('scroller'), cv = $('cv'), ctx = cv.getContext('2d'), spacer = $('spacer'), panel = $('panel');
+const mctx = document.createElement('canvas').getContext('2d');
+function hasFont(f){                 // only offer fonts this computer actually has
+  const t = 'mmmmmmmlliWW@#01', m = fam => { mctx.font = '72px ' + fam; return mctx.measureText(t).width; };
+  return m('"' + f + '", monospace') !== m('monospace') || m('"' + f + '", serif') !== m('serif');
+}
+const FONTS = ALL_FONTS.filter(hasFont);
+if (!FONTS.length) FONTS.push('Arial');
+$('bUndo').title = 'Anulează (' + KEY.mod + '+Z)'; $('bRedo').title = 'Refă (' + KEY.mod + '+' + KEY.shift + '+Z)';
+const H = () => FORMATS[state.format], W = () => state.frames * FW;
+const uid = () => Math.random().toString(36).slice(2, 10);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const getSel = () => state.els.find(e => e.id === sel) || null;
+
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2600); }
+
+/* ---------- history & autosave ---------- */
+function commit(){
+  const s = JSON.stringify(state);
+  if (hist[hi] === s) return;
+  hist.splice(hi + 1); hist.push(s); if (hist.length > 80) hist.shift(); hi = hist.length - 1;
+  syncButtons(); scheduleSave();
+}
+function travel(d){
+  if (hi + d < 0 || hi + d >= hist.length) return;
+  hi += d; state = JSON.parse(hist[hi]);
+  if (!getSel()) sel = null;
+  layout(); refreshPanel(); syncButtons(); scheduleSave();
+}
+function syncButtons(){ $('bUndo').disabled = hi <= 0; $('bRedo').disabled = hi >= hist.length - 1; $('hint').style.display = state.els.length ? 'none' : 'flex'; }
+
+let dbp = null;
+function db(){
+  return dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('carusel-studio', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+}
+function scheduleSave(){ clearTimeout(scheduleSave.t); scheduleSave.t = setTimeout(saveLocal, 700); }
+async function saveLocal(){
+  try{
+    const used = new Set(state.els.map(e => e.img).filter(Boolean));
+    const imgs = [...images].filter(([id]) => used.has(id)).map(([id, v]) => ({id, blob:v.blob}));
+    const d = await db(); d.transaction('kv', 'readwrite').objectStore('kv').put({state:JSON.stringify(state), imgs}, 'project');
+  }catch(e){}
+}
+async function loadLocal(){
+  try{
+    const d = await db();
+    const rec = await new Promise((res, rej) => { const r = d.transaction('kv').objectStore('kv').get('project'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    if (!rec) return;
+    for (const i of rec.imgs) await addBlob(i.blob, i.id).catch(() => {});
+    state = JSON.parse(rec.state);
+    state.els = state.els.filter(e => e.type !== 'image' || !e.img || images.has(e.img));
+  }catch(e){}
+}
+
+/* ---------- images ---------- */
+async function addBlob(blob, id = uid()){
+  const im = new Image(); im.src = URL.createObjectURL(blob);
+  await im.decode();
+  const w = im.naturalWidth, h = im.naturalHeight, m = Math.max(w, h);
+  let prev = im;
+  if (m > 2200){ const s = 2200 / m, c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(h * s); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); prev = c; }
+  images.set(id, {blob, full:im, prev, w, h});
+  return id;
+}
+function viewCenter(){
+  return {x: clamp((sc.scrollLeft + sc.clientWidth / 2 - view.offX) / view.z, 0, W()), y: H() / 2};
+}
+const newImg = (img, x, y, w, h) => ({id:uid(), type:'image', img, x, y, w, h, rot:0, opacity:1, radius:0, border:0, borderColor:'#ffffff', shadow:false, flip:false, cx:.5, cy:.5, cz:1});
+const isSlot = e => e.type === 'image' && !e.img;      // empty collage cell waiting for a photo
+let pickFor = null;                                     // element the next chosen file goes into
+function pickImage(id){ pickFor = id; $('fImg').click(); }
+async function addFiles(files, at){
+  const target = pickFor; pickFor = null;
+  const list = [...files].filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif|heic)$/i.test(f.name || ''));
+  if (!list.length) return;
+  const c = at || viewCenter(); let n = 0, bad = 0, last = null;
+  const slots = state.els.filter(isSlot).sort((a, b) => (a.x + a.w / 2) - (b.x + b.w / 2) || a.y - b.y);
+  const hit = target ? state.els.find(e => e.id === target) : at ? hitTest(at.x, at.y) : null;
+  if (hit && hit.type === 'image' && (target || isSlot(hit))){ const i = slots.indexOf(hit); if (i >= 0) slots.splice(i, 1); slots.unshift(hit); }
+  for (const f of list){
+    try{
+      const id = await addBlob(f), im = images.get(id), cell = slots.shift();
+      if (cell){ Object.assign(cell, {img:id, cx:.5, cy:.5, cz:1}); last = cell; }
+      else {
+        const h = H() * 0.62, w = h * im.w / im.h, o = n * 70;
+        last = newImg(id, c.x - w / 2 + o, c.y - h / 2 + o * 0.4, w, h);
+        state.els.push(last); n++;
+      }
+    }catch(e){ bad++; }
+  }
+  if (last) sel = last.id;
+  if (bad) toast(bad + ' fișier(e) nu au putut fi citite (format neacceptat de browser)');
+  commit(); refreshPanel(); render();
+}
+
+/* ---------- text ---------- */
+function fontOf(e){ return (e.italic ? 'italic ' : '') + (e.bold ? '700 ' : '400 ') + e.size + 'px "' + e.font + '", sans-serif'; }
+function measure(e){
+  mctx.font = fontOf(e);
+  const lines = e.text.split('\n');
+  const w = Math.max(20, ...lines.map(l => mctx.measureText(l).width)), h = lines.length * e.size * e.lh;
+  if (e.w != null){ if (e.align === 'center') e.x += (e.w - w) / 2; else if (e.align === 'right') e.x += e.w - w; }
+  e.w = w; e.h = h;
+}
+function addText(){
+  const c = viewCenter();
+  const e = {id:uid(), type:'text', text:'Textul tău', font:FONTS[0], size:110, color:'#111111', bold:true, italic:false, align:'center', lh:1.15, x:0, y:0, w:null, h:null, rot:0, opacity:1, shadow:false};
+  measure(e); e.x = c.x - e.w / 2; e.y = c.y - e.h / 2;
+  state.els.push(e); sel = e.id; commit(); refreshPanel(); render();
+  const ta = panel.querySelector('textarea'); if (ta && !COARSE){ ta.focus(); ta.select(); }   // on phones the keyboard would cover the canvas
+}
+
+/* ---------- drawing (shared by editor and export) ---------- */
+function drawScene(c, full, scale){
+  const w = W(), h = H(), b = state.bg;
+  if (b.type === 'solid') c.fillStyle = b.c1;
+  else{
+    const a = b.angle * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a), L = Math.abs(w * dx) + Math.abs(h * dy);
+    const g = c.createLinearGradient(w / 2 - dx * L / 2, h / 2 - dy * L / 2, w / 2 + dx * L / 2, h / 2 + dy * L / 2);
+    g.addColorStop(0, b.c1); g.addColorStop(1, b.c2); c.fillStyle = g;
+  }
+  c.fillRect(0, 0, w, h);
+  for (const e of state.els){
+    c.save();
+    c.translate(e.x + e.w / 2, e.y + e.h / 2); c.rotate(e.rot * Math.PI / 180); c.globalAlpha = e.opacity;
+    if (e.type === 'image') drawImageEl(c, e, full, scale); else drawTextEl(c, e, scale);
+    c.restore();
+  }
+}
+function drawImageEl(c, e, full, scale){
+  const im = images.get(e.img), w = e.w, h = e.h, r = Math.min(e.radius, w / 2, h / 2);
+  if (!im){
+    if (full) return;
+    const u = (window.devicePixelRatio || 1) / scale, k = Math.min(w, h) * .09;
+    c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, r); c.fillStyle = 'rgba(128,128,128,.2)'; c.fill();
+    c.setLineDash([8 * u, 6 * u]); c.lineWidth = 1.5 * u; c.strokeStyle = 'rgba(128,128,128,.9)'; c.stroke(); c.setLineDash([]);
+    c.beginPath(); c.moveTo(-k, 0); c.lineTo(k, 0); c.moveTo(0, -k); c.lineTo(0, k); c.lineWidth = 3 * u; c.stroke();
+    return;
+  }
+  c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, r);
+  if (e.shadow && e.opacity >= 1){ c.save(); c.shadowColor = 'rgba(0,0,0,.38)'; c.shadowBlur = 46 * scale; c.shadowOffsetY = 18 * scale; c.fillStyle = '#000'; c.fill(); c.restore(); }
+  c.save(); c.clip();
+  if (e.flip) c.scale(-1, 1);
+  const src = full ? im.full : im.prev, k = (src.naturalWidth || src.width) / im.w;
+  const s = Math.max(w / im.w, h / im.h) * e.cz, sw = w / s, sh = h / s;
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(src, (im.w - sw) * e.cx * k, (im.h - sh) * e.cy * k, sw * k, sh * k, -w / 2, -h / 2, w, h);
+  c.restore();
+  if (e.border > 0){
+    const bw = Math.min(e.border, w / 2, h / 2);
+    c.beginPath(); c.roundRect(-w / 2 + bw / 2, -h / 2 + bw / 2, w - bw, h - bw, Math.max(0, r - bw / 2));
+    c.lineWidth = bw; c.strokeStyle = e.borderColor; c.stroke();
+  }
+}
+function drawTextEl(c, e, scale){
+  c.font = fontOf(e); c.fillStyle = e.color; c.textBaseline = 'middle'; c.textAlign = e.align;
+  if (e.shadow){ c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = e.size * .16 * scale; c.shadowOffsetY = e.size * .04 * scale; }
+  const x = e.align === 'left' ? -e.w / 2 : e.align === 'right' ? e.w / 2 : 0;
+  e.text.split('\n').forEach((l, i) => c.fillText(l, x, -e.h / 2 + (i + .5) * e.size * e.lh));
+}
+
+/* ---------- editor view ---------- */
+function layout(){
+  const cw = sc.clientWidth, ch = sc.clientHeight, z = view.z;
+  spacer.style.width = (W() * z + PAD * 2) + 'px'; spacer.style.height = (H() * z + PAD * 2) + 'px';
+  view.offX = Math.max(PAD, (cw - W() * z) / 2); view.offY = Math.max(PAD, (ch - H() * z) / 2);
+  const st = $('stage'), dpr = window.devicePixelRatio || 1;
+  const pw = Math.round(st.clientWidth * dpr), ph = Math.round(st.clientHeight * dpr);
+  if (cv.width !== pw || cv.height !== ph){ cv.width = pw; cv.height = ph; }
+  $('zl').textContent = Math.round(z * 100) + '%';
+  render();
+}
+function fit(){
+  const cw = sc.clientWidth, ch = sc.clientHeight;
+  view.z = clamp(Math.min((ch - PAD * 2) / H(), (cw - PAD * 2) / FW), 0.05, 2);
+  layout();
+}
+function setZoom(z, mx, my){
+  z = clamp(z, 0.05, 3);
+  if (mx == null){ mx = sc.clientWidth / 2; my = sc.clientHeight / 2; }
+  const wx = (mx - view.offX + sc.scrollLeft) / view.z, wy = (my - view.offY + sc.scrollTop) / view.z;
+  view.z = z; layout();
+  sc.scrollLeft = wx * z + view.offX - mx; sc.scrollTop = wy * z + view.offY - my;
+  render();
+}
+let raf = 0;
+function render(){ if (!raf) raf = requestAnimationFrame(paint); }
+function w2s(x, y){ return [x * view.z + view.offX - sc.scrollLeft, y * view.z + view.offY - sc.scrollTop]; }
+function local2world(e, lx, ly){
+  const a = e.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+  return [e.x + e.w / 2 + lx * co - ly * si, e.y + e.h / 2 + lx * si + ly * co];
+}
+function world2local(e, x, y){
+  const a = -e.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a), dx = x - (e.x + e.w / 2), dy = y - (e.y + e.h / 2);
+  return [dx * co - dy * si, dx * si + dy * co];
+}
+function handlesOf(e){
+  const hs = [{hx:-1,hy:-1},{hx:1,hy:-1},{hx:1,hy:1},{hx:-1,hy:1}];
+  if (e.type === 'image') hs.push({hx:0,hy:-1},{hx:1,hy:0},{hx:0,hy:1},{hx:-1,hy:0});
+  for (const h of hs) h.s = w2s(...local2world(e, h.hx * e.w / 2, h.hy * e.h / 2));
+  hs.push({rot:true, s:w2s(...local2world(e, 0, -e.h / 2 - 30 / view.z))});
+  return hs;
+}
+function paint(){
+  raf = 0;
+  const dpr = window.devicePixelRatio || 1, z = view.z, w = W(), h = H();
+  const [tx, ty] = w2s(0, 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.save(); ctx.translate(tx, ty); ctx.scale(z, z); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip(); drawScene(ctx, false, z * dpr); ctx.restore();
+  // frame separators + numbers
+  ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  for (let i = 0; i <= state.frames; i++){
+    const x = Math.round(tx + i * FW * z) + .5;
+    if (i > 0 && i < state.frames){
+      ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, ty); ctx.lineTo(x, ty + h * z); ctx.stroke();
+      ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.beginPath(); ctx.moveTo(x, ty); ctx.lineTo(x, ty + h * z); ctx.stroke();
+    }
+    if (i < state.frames){ ctx.fillStyle = '#7d838c'; ctx.fillText(String(i + 1), tx + (i + .5) * FW * z, ty - 10); }
+  }
+  ctx.setLineDash([]);
+  // snap guides
+  if (drag && drag.guides){
+    ctx.strokeStyle = '#ff8552'; ctx.lineWidth = 1;
+    for (const gx of drag.guides.x){ const x = Math.round(tx + gx * z) + .5; ctx.beginPath(); ctx.moveTo(x, ty - 14); ctx.lineTo(x, ty + h * z + 14); ctx.stroke(); }
+    for (const gy of drag.guides.y){ const y = Math.round(ty + gy * z) + .5; ctx.beginPath(); ctx.moveTo(tx - 14, y); ctx.lineTo(tx + w * z + 14, y); ctx.stroke(); }
+  }
+  // selection
+  const e = getSel();
+  if (e){
+    const c = [[-1,-1],[1,-1],[1,1],[-1,1]].map(([a, b]) => w2s(...local2world(e, a * e.w / 2, b * e.h / 2)));
+    ctx.strokeStyle = '#ff8552'; ctx.lineWidth = 1.5; ctx.beginPath(); c.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke();
+    const hs = handlesOf(e), rh = hs[hs.length - 1], top = w2s(...local2world(e, 0, -e.h / 2));
+    ctx.beginPath(); ctx.moveTo(top[0], top[1]); ctx.lineTo(rh.s[0], rh.s[1]); ctx.stroke();
+    for (const hd of hs){
+      ctx.beginPath(); ctx.arc(hd.s[0], hd.s[1], hd.rot ? 6 : 5, 0, Math.PI * 2);
+      ctx.fillStyle = hd.rot ? '#ff8552' : '#fff'; ctx.fill(); ctx.stroke();
+    }
+  }
+}
+
+/* ---------- pointer interaction ---------- */
+function evPos(ev){ const r = sc.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; }
+function s2w(mx, my){ return [(mx - view.offX + sc.scrollLeft) / view.z, (my - view.offY + sc.scrollTop) / view.z]; }
+function hitTest(x, y){
+  for (let i = state.els.length - 1; i >= 0; i--){
+    const e = state.els[i], [lx, ly] = world2local(e, x, y);
+    if (Math.abs(lx) <= e.w / 2 && Math.abs(ly) <= e.h / 2) return e;
+  }
+  return null;
+}
+function hitHandle(mx, my, rad){
+  const e = getSel(); if (!e) return null;
+  const hs = handlesOf(e);
+  for (let i = hs.length - 1; i >= 0; i--) if (Math.hypot(hs[i].s[0] - mx, hs[i].s[1] - my) <= rad) return hs[i];
+  return null;
+}
+function snapTargets(){
+  const xs = [], ys = [0, H() / 2, H()];
+  for (let i = 0; i <= state.frames; i++){ xs.push(i * FW); if (i < state.frames) xs.push((i + .5) * FW); }
+  return {xs, ys};
+}
+function nearest(v, list, thr){ let best = null, bd = thr; for (const t of list){ const d = Math.abs(t - v); if (d < bd){ bd = d; best = t; } } return best; }
+
+sc.addEventListener('pointerdown', ev => {
+  if (ev.button !== 0) return;
+  const [mx, my] = evPos(ev);
+  if (mx > sc.clientWidth || my > sc.clientHeight) return;      // scrollbar
+  const [x, y] = s2w(mx, my);
+  const hd = hitHandle(mx, my, ev.pointerType === 'touch' ? 18 : 10);
+  if (hd){
+    const e = getSel();
+    drag = {mode: hd.rot ? 'rotate' : 'resize', hx:hd.hx, hy:hd.hy, id:e.id, orig:JSON.parse(JSON.stringify(e)), moved:false};
+  } else {
+    const e = hitTest(x, y);
+    if (ev.pointerType === 'touch' && (!e || e.id !== sel)){ tap = {x:ev.clientX, y:ev.clientY, id:e ? e.id : null}; return; }   // touch: tap selects, dragging pans the canvas
+    if (e){
+      const wasSel = sel === e.id;
+      if (!wasSel){ sel = e.id; refreshPanel(); }
+      drag = {wasSel, mode: ev.altKey && e.type === 'image' && e.img ? 'crop' : 'move', sx:x, sy:y, id:e.id, orig:JSON.parse(JSON.stringify(e)), moved:false};
+    } else if (sel){ sel = null; refreshPanel(); }
+  }
+  if (drag){ sc.setPointerCapture(ev.pointerId); ev.preventDefault(); }
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  render();
+});
+sc.addEventListener('pointermove', ev => {
+  const [mx, my] = evPos(ev), [x, y] = s2w(mx, my);
+  if (!drag){
+    const hd = hitHandle(mx, my, 10);
+    sc.style.cursor = hd ? (hd.rot ? 'grab' : 'nwse-resize') : hitTest(x, y) ? 'move' : 'default';
+    return;
+  }
+  const e = getSel(), o = drag.orig; if (!e) return;
+  drag.moved = true; drag.guides = null;
+  const thr = 7 / view.z, T = snapTargets();
+  if (drag.mode === 'move'){
+    let nx = o.x + x - drag.sx, ny = o.y + y - drag.sy;
+    if (!ev.metaKey && !ev.ctrlKey){
+      const g = {x:[], y:[]}, r = ((o.rot % 180) + 180) % 180;
+      let bw = o.w, bh = o.h; if (Math.abs(r - 90) < .01){ bw = o.h; bh = o.w; }
+      const cx = nx + o.w / 2, cy = ny + o.h / 2, straight = r < .01 || Math.abs(r - 90) < .01;
+      const candX = straight ? [[cx - bw / 2, T.xs], [cx + bw / 2, T.xs], [cx, T.xs]] : [[cx, T.xs]];
+      const candY = straight ? [[cy - bh / 2, T.ys], [cy + bh / 2, T.ys], [cy, T.ys]] : [[cy, T.ys]];
+      let bx = null, by = null;
+      for (const [v, l] of candX){ const t = nearest(v, l, thr); if (t != null && (bx == null || Math.abs(t - v) < Math.abs(bx[0]))) bx = [t - v, t]; }
+      for (const [v, l] of candY){ const t = nearest(v, l, thr); if (t != null && (by == null || Math.abs(t - v) < Math.abs(by[0]))) by = [t - v, t]; }
+      if (bx){ nx += bx[0]; g.x.push(bx[1]); } if (by){ ny += by[0]; g.y.push(by[1]); }
+      drag.guides = g;
+    }
+    e.x = nx; e.y = ny;
+  } else if (drag.mode === 'crop'){
+    const im = images.get(o.img), s = Math.max(o.w / im.w, o.h / im.h) * o.cz;
+    const a = -o.rot * Math.PI / 180, dx = x - drag.sx, dy = y - drag.sy;
+    let lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+    if (o.flip) lx = -lx;
+    const slx = im.w * s - o.w, sly = im.h * s - o.h;
+    if (slx > 1) e.cx = clamp(o.cx - lx / slx, 0, 1);
+    if (sly > 1) e.cy = clamp(o.cy - ly / sly, 0, 1);
+  } else if (drag.mode === 'rotate'){
+    let deg = Math.atan2(y - (o.y + o.h / 2), x - (o.x + o.w / 2)) * 180 / Math.PI + 90;
+    if (deg > 180) deg -= 360;
+    const q = Math.round(deg / 45) * 45; if (Math.abs(deg - q) < 3) deg = q;
+    e.rot = Math.round(deg * 10) / 10;
+  } else {
+    const {hx, hy} = drag, a = o.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+    const [ax, ay] = local2world(o, -hx * o.w / 2, -hy * o.h / 2);
+    const dx = x - ax, dy = y - ay, lx = dx * co + dy * si, ly = -dx * si + dy * co;
+    let w = hx ? Math.max(24, lx * hx) : o.w, h = hy ? Math.max(24, ly * hy) : o.h;
+    const prop = hx && hy && (o.type === 'text' || !ev.shiftKey);
+    if (prop){ const s = Math.max(w / o.w, h / o.h); w = o.w * s; h = o.h * s; }
+    else if (o.rot === 0){
+      const g = {x:[], y:[]};
+      if (hx){ const t = nearest(ax + hx * w, T.xs, thr); if (t != null && (t - ax) * hx > 24){ w = (t - ax) * hx; g.x.push(t); } }
+      if (hy){ const t = nearest(ay + hy * h, T.ys, thr); if (t != null && (t - ay) * hy > 24){ h = (t - ay) * hy; g.y.push(t); } }
+      drag.guides = g;
+    }
+    if (o.type === 'text'){ e.size = Math.max(8, o.size * w / o.w); e.w = null; measure(e); w = e.w; h = e.h; }
+    const ccx = ax + (hx * w / 2) * co - (hy * h / 2) * si, ccy = ay + (hx * w / 2) * si + (hy * h / 2) * co;
+    e.w = w; e.h = h; e.x = ccx - w / 2; e.y = ccy - h / 2;
+  }
+  render();
+});
+function endDrag(){
+  if (!drag) return;
+  const d = drag, moved = d.moved; drag = null;
+  if (moved){ commit(); refreshPanel(); }
+  else if (d.wasSel && d.mode === 'move'){ const e = getSel(); if (e && isSlot(e)) pickImage(e.id); }
+  render();
+}
+sc.addEventListener('pointerup', ev => {
+  if (tap){
+    if (Math.hypot(ev.clientX - tap.x, ev.clientY - tap.y) < 10){
+      if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+      sel = tap.id; refreshPanel(); render();
+    }
+    tap = null;
+  }
+  endDrag();
+});
+sc.addEventListener('pointercancel', () => { tap = null; endDrag(); });
+const tdist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+sc.addEventListener('touchstart', ev => {
+  if (ev.touches.length === 2){                    // pinch to zoom
+    ev.preventDefault(); tap = null;
+    if (drag){ const e = getSel(); if (e) Object.assign(e, drag.orig); drag = null; }
+    pinch = {d:tdist(ev.touches), z:view.z}; return;
+  }
+  if (ev.touches.length !== 1) return;
+  const r = sc.getBoundingClientRect(), mx = ev.touches[0].clientX - r.left, my = ev.touches[0].clientY - r.top;
+  const e = hitTest(...s2w(mx, my));
+  if (hitHandle(mx, my, 18) || (e && e.id === sel)) ev.preventDefault();   // only the selected element captures the finger
+}, {passive:false});
+sc.addEventListener('touchmove', ev => {
+  if (!pinch || ev.touches.length !== 2) return;
+  ev.preventDefault();
+  const r = sc.getBoundingClientRect(), t = ev.touches;
+  setZoom(pinch.z * tdist(t) / pinch.d, (t[0].clientX + t[1].clientX) / 2 - r.left, (t[0].clientY + t[1].clientY) / 2 - r.top);
+}, {passive:false});
+sc.addEventListener('touchend', ev => { if (ev.touches.length < 2) pinch = null; });
+sc.addEventListener('dblclick', ev => {
+  const e = getSel(); if (e && e.type === 'text'){ const ta = panel.querySelector('textarea'); if (ta){ ta.focus(); ta.select(); } }
+});
+sc.addEventListener('scroll', render);
+sc.addEventListener('wheel', ev => {
+  if (ev.ctrlKey || ev.metaKey){ ev.preventDefault(); const [mx, my] = evPos(ev); setZoom(view.z * Math.exp(-ev.deltaY * 0.01), mx, my); }
+  else if (!ev.shiftKey && Math.abs(ev.deltaX) < 1 && sc.scrollHeight <= sc.clientHeight + 1){ ev.preventDefault(); sc.scrollLeft += ev.deltaY; }
+}, {passive:false});
+new ResizeObserver(layout).observe($('stage'));
+
+/* ---------- drag & drop, paste, keyboard ---------- */
+const stageEl = $('stage');
+stageEl.addEventListener('dragover', ev => { ev.preventDefault(); stageEl.classList.add('drop'); });
+stageEl.addEventListener('dragleave', () => stageEl.classList.remove('drop'));
+stageEl.addEventListener('drop', ev => {
+  ev.preventDefault(); stageEl.classList.remove('drop');
+  const [mx, my] = evPos(ev), [x, y] = s2w(mx, my);
+  addFiles(ev.dataTransfer.files, {x:clamp(x, 0, W()), y:clamp(y, 0, H())});
+});
+window.addEventListener('paste', ev => {
+  if (/INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const fs = [...(ev.clipboardData?.files || [])]; if (fs.length){ ev.preventDefault(); addFiles(fs); }
+});
+window.addEventListener('keydown', ev => {
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.querySelector('dialog[open]')) return;
+  const mod = ev.metaKey || ev.ctrlKey, e = getSel(), k = ev.key.toLowerCase();
+  if (mod && k === 'z'){ ev.preventDefault(); travel(ev.shiftKey ? 1 : -1); return; }
+  if (mod && k === 'y'){ ev.preventDefault(); travel(1); return; }
+  if (mod && (k === '=' || k === '+')){ ev.preventDefault(); setZoom(view.z * 1.25); return; }
+  if (mod && k === '-'){ ev.preventDefault(); setZoom(view.z / 1.25); return; }
+  if (mod && k === '0'){ ev.preventDefault(); fit(); return; }
+  if (!e) return;
+  if (k === 'delete' || k === 'backspace'){ ev.preventDefault(); act('del'); }
+  else if (mod && k === 'd'){ ev.preventDefault(); act('dup'); }
+  else if (k === ']'){ act('front'); } else if (k === '['){ act('back'); }
+  else if (k === 'escape'){ sel = null; refreshPanel(); render(); }
+  else if (k.startsWith('arrow')){
+    ev.preventDefault(); const d = ev.shiftKey ? 10 : 1;
+    if (k === 'arrowleft') e.x -= d; if (k === 'arrowright') e.x += d; if (k === 'arrowup') e.y -= d; if (k === 'arrowdown') e.y += d;
+    commit(); render();
+  }
+});
+
+/* ---------- actions ---------- */
+function act(a){
+  const e = getSel(), i = state.els.indexOf(e);
+  if (a.startsWith('fmt:')){ state.format = a.slice(4); commit(); fit(); refreshPanel(); return; }
+  if (a === 'f-' || a === 'f+'){ state.frames = clamp(state.frames + (a === 'f+' ? 1 : -1), 1, MAXF); commit(); layout(); refreshPanel(); return; }
+  if (a.startsWith('tpl:')) return template(a.slice(4));
+  if (a.startsWith('col:')) return collage(+a.slice(4));
+  if (a.startsWith('fn:')){ state.frames = clamp(+a.slice(3), 1, MAXF); commit(); fit(); refreshPanel(); return; }
+  if (a === 'save') return saveProject();
+  if (a === 'open') return $('fProj').click();
+  if (a === 'new'){ if (!state.els.length || confirm('Ștergi tot și începi un proiect nou?')){ state = fresh(); sel = null; commit(); fit(); refreshPanel(); } return; }
+  if (!e) return;
+  if (a === 'pick') return pickImage(e.id);
+  if (a === 'del'){ state.els.splice(i, 1); sel = null; }
+  if (a === 'dup'){ const c = JSON.parse(JSON.stringify(e)); c.id = uid(); c.x += 60; c.y += 60; state.els.push(c); sel = c.id; }
+  if (a === 'front'){ state.els.splice(i, 1); state.els.push(e); }
+  if (a === 'back'){ state.els.splice(i, 1); state.els.unshift(e); }
+  if (a === 'flip') e.flip = !e.flip;
+  if (a === 'fill'){ const f = clamp(Math.floor((e.x + e.w / 2) / FW), 0, state.frames - 1); Object.assign(e, {x:f * FW, y:0, w:FW, h:H(), rot:0}); }
+  if (a === 'fillall'){ Object.assign(e, {x:0, y:0, w:W(), h:H(), rot:0}); state.els.splice(i, 1); state.els.unshift(e); }
+  commit(); refreshPanel(); render();
+}
+function template(name){
+  const imgs = state.els.filter(e => e.type === 'image' && e.img);
+  if (!imgs.length){ toast('Adaugă mai întâi câteva imagini'); return; }
+  state.els = state.els.filter(e => !isSlot(e)); state.tpl = null; if (!getSel()) sel = null;
+  const h = H(), ar = e => { const im = images.get(e.img); return im.w / im.h; };
+  imgs.forEach(e => Object.assign(e, {rot:0, cx:.5, cy:.5, cz:1}));
+  const strip = (list, y, rh, gap) => {            // natural-width row; returns total width
+    let x = 0; for (const e of list){ e.h = rh; e.w = rh * ar(e); e.x = x; e.y = y; x += e.w + gap; } return x - gap;
+  };
+  if (name === 'pano'){
+    const e = imgs[0]; state.frames = clamp(Math.round(ar(e) * h / FW), 1, MAXF);
+    Object.assign(e, {x:0, y:0, w:W(), h}); state.els.splice(state.els.indexOf(e), 1); state.els.unshift(e);
+  } else if (name === 'full' || name === 'margin'){
+    const m = name === 'margin' ? 70 : 0; state.frames = clamp(imgs.length, 1, MAXF);
+    imgs.slice(0, MAXF).forEach((e, i) => Object.assign(e, {x:i * FW + m, y:m, w:FW - 2 * m, h:h - 2 * m}));
+  } else if (name === 'film' || name === 'two'){
+    const gap = 40, rows = name === 'two' ? [imgs.filter((_, i) => i % 2 === 0), imgs.filter((_, i) => i % 2 === 1)].filter(r => r.length) : [imgs];
+    let rh = rows.length === 2 ? (h - gap * 3) / 2 : h * 0.64;
+    let widths = rows.map((r, i) => strip(r, 0, rh, gap));
+    const maxW = MAXF * FW - gap * 2, big = Math.max(...widths);
+    if (big > maxW){ rh *= maxW / big; widths = rows.map(r => strip(r, 0, rh, gap)); }
+    if (rows.length === 1){                       // stretch the row so it fills a whole number of frames
+      const n = clamp(Math.round((widths[0] + gap * 2) / FW), 1, MAXF), k = imgs.length;
+      const rh2 = rh * (n * FW - gap * (k + 1)) / (widths[0] - gap * (k - 1));
+      if (rh2 > 0 && rh2 <= h - gap * 2){ rh = rh2; widths = [strip(imgs, 0, rh, gap)]; }
+    }
+    state.frames = clamp(Math.ceil((Math.max(...widths) + gap * 2 - 1) / FW), 1, MAXF);
+    const top = (h - (rows.length * rh + (rows.length - 1) * gap)) / 2;
+    rows.forEach((r, i) => { const off = (W() - widths[i]) / 2; r.forEach(e => { e.x += off; e.y = top + i * (rh + gap); }); });
+  } else if (name === 'mosaic'){
+    const m = 60, g = 36, k = imgs.length, per = Math.floor(k / 3), rest = k % 3;
+    state.frames = clamp(per * 2 + (rest === 0 ? 0 : rest === 1 ? 1 : 2), 1, MAXF);
+    for (let p = 0; p * 3 < k; p++){
+      const base = p * 2 * FW, [A, B, C] = imgs.slice(p * 3, p * 3 + 3), mir = p % 2 === 1;
+      if (!B){ Object.assign(A, {x:base + m, y:m, w:FW - 2 * m, h:h - 2 * m}); continue; }
+      const wBig = 1.3 * FW - m - g / 2, wSm = 0.7 * FW - m - g / 2;
+      const xBig = mir ? base + 2 * FW - m - wBig : base + m, xSm = mir ? base + m : base + 2 * FW - m - wSm;
+      Object.assign(A, {x:xBig, y:m, w:wBig, h:h - 2 * m});
+      if (C){ const hh = (h - 2 * m - g) / 2; Object.assign(B, {x:xSm, y:m, w:wSm, h:hh}); Object.assign(C, {x:xSm, y:m + hh + g, w:wSm, h:hh}); }
+      else Object.assign(B, {x:xSm, y:m, w:wSm, h:h - 2 * m});
+    }
+  }
+  commit(); fit(); refreshPanel();
+}
+
+/* ---------- collage templates ----------
+   p = pattern length in frames; r = cells as [x, y, width, height], x/width in frames, y/height as a fraction of the height.
+   The pattern repeats along the whole strip, so every template works with any number of frames. */
+const T3 = 1 / 3;
+const COLLAGES = [
+  {n:'O poză pe cadru', p:1, r:[[0,0,1,1]]},
+  {n:'Două suprapuse', p:1, r:[[0,0,1,.5],[0,.5,1,.5]]},
+  {n:'Lată + două mici', p:2, r:[[0,0,1.3,1],[1.3,0,.7,.5],[1.3,.5,.7,.5]]},
+  {n:'Două mici + lată', p:2, r:[[0,0,.7,.5],[0,.5,.7,.5],[.7,0,1.3,1]]},
+  {n:'Punte peste tăietură', p:2, r:[[0,0,.5,1],[.5,0,1,1],[1.5,0,.5,1]]},
+  {n:'Panoramă sus', p:2, r:[[0,0,2,.56],[0,.56,2*T3,.44],[2*T3,.56,2*T3,.44],[4*T3,.56,2*T3,.44]]},
+  {n:'Panoramă jos', p:2, r:[[0,0,2*T3,.44],[2*T3,0,2*T3,.44],[4*T3,0,2*T3,.44],[0,.44,2,.56]]},
+  {n:'Două pe trei cadre', p:3, r:[[0,0,1.5,1],[1.5,0,1.5,1]]},
+  {n:'Cărămizi', p:2, r:[[0,0,.75,.5],[.75,0,1.25,.5],[0,.5,1.25,.5],[1.25,.5,.75,.5]]},
+  {n:'Zid pe trei rânduri', p:2, r:[[0,0,1,T3],[1,0,1,T3],[.5,T3,1,T3],[1.5,T3,1,T3],[0,2*T3,1,T3],[1,2*T3,1,T3]]},
+  {n:'Centru mare', p:3, r:[[0,0,.8,.5],[0,.5,.8,.5],[.8,0,1.4,1],[2.2,0,.8,.5],[2.2,.5,.8,.5]]},
+  {n:'Trepte', p:2, r:[[0,0,1.2,.6],[1.2,0,.8,.6],[0,.6,.8,.4],[.8,.6,1.2,.4]]},
+  {n:'Trei coloane', p:2, r:[[0,0,2*T3,1],[2*T3,0,2*T3,1],[4*T3,0,2*T3,1]]},
+  {n:'Patru coloane', p:3, r:[[0,0,.75,1],[.75,0,.75,1],[1.5,0,.75,1],[2.25,0,.75,1]]},
+  {n:'Poze plutitoare', p:1.5, r:[[.12,.14,1.26,.72]]},
+  {n:'Înaltă și late', p:3, r:[[0,0,.9,1],[.9,0,1.2,.5],[.9,.5,1.2,.5],[2.1,0,.9,1]]},
+  {n:'Mozaic', p:2, r:[[0,0,.8,.6],[0,.6,.8,.4],[.8,0,.6,.35],[.8,.35,.6,.65],[1.4,0,.6,.65],[1.4,.65,.6,.35]]},
+  {n:'Bandă de film', p:1.25, r:[[0,.2,1.25,.6]]},
+  {n:'Două benzi decalate', p:1.5, r:[[0,.03,1.5,.46],[.75,.51,1.5,.46]]},
+  {n:'Erou + trei mici', p:3, r:[[0,0,2,1],[2,0,1,T3],[2,T3,1,T3],[2,2*T3,1,T3]]},
+];
+function collage(i, live){
+  const T = COLLAGES[i], g = state.gap ?? 30, rad = state.rad ?? 0, w = W(), h = H(), a = g / 2, rects = [];
+  for (let t = -1; t * T.p < state.frames; t++) for (const r of T.r){
+    let x0 = Math.max(0, (t * T.p + r[0]) * FW), x1 = Math.min(w, (t * T.p + r[0] + r[2]) * FW), y0 = r[1] * h, y1 = (r[1] + r[3]) * h;
+    if (x1 - x0 < .3 * FW) continue;                                   // sliver left over at the ends of the strip
+    x0 += x0 < 1 ? g : a; x1 -= x1 > w - 1 ? g : a; y0 += y0 < 1 ? g : a; y1 -= y1 > h - 1 ? g : a;
+    rects.push([x0, y0, x1 - x0, y1 - y0]);
+  }
+  const byPos = (cx1, y1, cx2, y2) => Math.abs(cx1 - cx2) > 1 ? cx1 - cx2 : y1 - y2;   // left to right, then top to bottom
+  rects.sort((p, q) => byPos(p[0] + p[2] / 2, p[1], q[0] + q[2] / 2, q[1]));
+  const imgs = state.els.filter(e => e.type === 'image' && e.img).sort((p, q) => byPos(p.x + p.w / 2, p.y, q.x + q.w / 2, q.y));
+  const rest = state.els.filter(e => e.type !== 'image');
+  const cells = rects.map((r, k) => Object.assign(imgs[k] || newImg(null, 0, 0, 1, 1), {x:r[0], y:r[1], w:r[2], h:r[3], rot:0, radius:rad}));
+  state.els = [...cells, ...imgs.slice(rects.length), ...rest];      // photos first, text stays on top
+  state.tpl = i; if (!getSel()) sel = null;
+  if (live){ render(); return; }
+  commit(); fit(); refreshPanel();
+}
+function thumb(T){
+  let s = '';
+  for (let t = -1; t * T.p < 3; t++) for (const r of T.r){
+    const x0 = Math.max(0, (t * T.p + r[0]) * 32), x1 = Math.min(96, (t * T.p + r[0] + r[2]) * 32);
+    if (x1 - x0 < 6) continue;
+    s += `<rect x="${(x0 + 1).toFixed(1)}" y="${(r[1] * 40 + 1).toFixed(1)}" width="${(x1 - x0 - 2).toFixed(1)}" height="${(r[3] * 40 - 2).toFixed(1)}" rx="1.5"/>`;
+  }
+  return `<svg viewBox="0 0 96 40"><g fill="currentColor" fill-opacity=".55">${s}</g><path d="M32 0v40M64 0v40" stroke="var(--accent)" stroke-dasharray="2 2" stroke-width=".8"/></svg>`;
+}
+
+/* ---------- side panel ---------- */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rng = (label, k, min, max, step, v, o = 'el') => `<div class="row"><label>${label}</label><input type="range" data-o="${o}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
+const chk = (label, k, v) => `<div class="row"><label>${label}</label><input type="checkbox" data-o="el" data-k="${k}" ${v ? 'checked' : ''}></div>`;
+function refreshPanel(){
+  const e = getSel(); let h = '';
+  if (!e){
+    const b = state.bg;
+    h += `<h3>Format</h3><div class="seg">${Object.keys(FORMATS).map(f => `<button class="btn ${f === state.format ? 'on' : ''}" data-act="fmt:${f}">${f}</button>`).join('')}</div>
+    <h3>Cadre (slide-uri)</h3><div class="row"><button class="btn icon" data-act="f-">−</button><div style="flex:1;text-align:center;font-size:16px;font-weight:600">${state.frames}</div><button class="btn icon" data-act="f+">＋</button></div>
+    <div class="seg">${[3, 5, 10, 20].map(n => `<button class="btn ${state.frames === n ? 'on' : ''}" data-act="fn:${n}">${n}</button>`).join('')}</div>
+    <h3>Fundal</h3>
+    <div class="row"><label>Tip</label><select data-o="bg" data-k="type"><option value="solid" ${b.type === 'solid' ? 'selected' : ''}>Culoare simplă</option><option value="grad" ${b.type === 'grad' ? 'selected' : ''}>Gradient</option></select></div>
+    <div class="row"><label>Culoare</label><input type="color" data-o="bg" data-k="c1" value="${b.c1}">${b.type === 'grad' ? `<input type="color" data-o="bg" data-k="c2" value="${b.c2}">` : ''}</div>
+    ${b.type === 'grad' ? rng('Unghi', 'angle', 0, 360, 1, b.angle, 'bg') : ''}
+    <h3>Colaje (${COLLAGES.length} de șabloane)</h3>
+    <div class="cgrid">${COLLAGES.map((T, i) => `<button class="btn ${state.tpl === i ? 'on' : ''}" data-act="col:${i}">${thumb(T)}${T.n}</button>`).join('')}</div>
+    ${rng('Spațiu', 'gap', 0, 120, 1, state.gap ?? 30, 'state')}${rng('Colțuri', 'rad', 0, 200, 1, state.rad ?? 0, 'state')}
+    <div class="tip" style="margin-top:4px">Alege numărul de cadre, apoi un colaj. Pozele adăugate intră pe rând în celulele goale; ${COARSE ? 'atinge' : 'apasă'} o celulă selectată ca să-i alegi poza.</div>
+    <h3>Aranjare după forma pozelor</h3><div class="tpl">
+      <button class="btn" data-act="tpl:pano">Panoramă<small>Prima imagine întinsă peste toate cadrele</small></button>
+      <button class="btn" data-act="tpl:film">Bandă continuă<small>Pozele întregi, una lângă alta</small></button>
+      <button class="btn" data-act="tpl:two">Două rânduri<small>Două benzi suprapuse</small></button>
+    </div>
+    <h3>Proiect</h3><div class="grid2"><button class="btn" data-act="save">Salvează…</button><button class="btn" data-act="open">Deschide…</button></div>
+    <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
+    <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor. <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
+  } else {
+    const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">Șterge</button></div>`;
+    if (e.type === 'image'){
+      h += `<h3>Imagine</h3><div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
+      <h3>Decupaj</h3>${rng('Zoom', 'cz', 1, 4, 0.01, e.cz)}${rng('Orizontal', 'cx', 0, 1, 0.005, e.cx)}${rng('Vertical', 'cy', 0, 1, 0.005, e.cy)}
+      <h3>Aspect</h3>${rng('Opacitate', 'opacity', 0.05, 1, 0.01, e.opacity)}${rng('Colțuri', 'radius', 0, 400, 1, e.radius)}${rng('Chenar', 'border', 0, 80, 1, e.border)}
+      <div class="row"><label>Culoare chenar</label><input type="color" data-o="el" data-k="borderColor" value="${e.borderColor}"></div>
+      ${chk('Umbră', 'shadow', e.shadow)}${rng('Rotire', 'rot', -180, 180, 1, e.rot)}<h3>Strat</h3>${common}`;
+    } else {
+      h += `<h3>Text</h3><textarea data-o="el" data-k="text">${esc(e.text)}</textarea>
+      <div class="row"><label>Font</label><select data-o="el" data-k="font">${(FONTS.includes(e.font) ? FONTS : [e.font, ...FONTS]).map(f => `<option ${f === e.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
+      <div class="row"><label>Mărime</label><input type="number" data-o="el" data-k="size" min="8" max="2000" value="${Math.round(e.size)}"></div>
+      <div class="row"><label>Culoare</label><input type="color" data-o="el" data-k="color" value="${e.color}"></div>
+      <div class="row"><label>Aliniere</label><select data-o="el" data-k="align"><option value="left" ${e.align === 'left' ? 'selected' : ''}>Stânga</option><option value="center" ${e.align === 'center' ? 'selected' : ''}>Centru</option><option value="right" ${e.align === 'right' ? 'selected' : ''}>Dreapta</option></select></div>
+      ${chk('Îngroșat', 'bold', e.bold)}${chk('Cursiv', 'italic', e.italic)}${chk('Umbră', 'shadow', e.shadow)}
+      ${rng('Spațiu rânduri', 'lh', 0.8, 2.2, 0.01, e.lh)}${rng('Opacitate', 'opacity', 0.05, 1, 0.01, e.opacity)}${rng('Rotire', 'rot', -180, 180, 1, e.rot)}<h3>Strat</h3>${common}`;
+    }
+  }
+  panel.innerHTML = h; syncButtons();
+}
+panel.addEventListener('input', ev => {
+  const t = ev.target, k = t.dataset.k; if (!k) return;
+  const obj = t.dataset.o === 'bg' ? state.bg : t.dataset.o === 'state' ? state : getSel(); if (!obj) return;
+  obj[k] = t.type === 'checkbox' ? t.checked : (t.type === 'range' || t.type === 'number') ? (parseFloat(t.value) || 0) : t.value;
+  if (obj.type === 'text'){ obj.size = clamp(obj.size, 8, 2000); measure(obj); }
+  if (obj === state && state.tpl != null){ collage(state.tpl, true); return; }   // spacing/corners re-flow the current collage
+  render();
+});
+panel.addEventListener('change', ev => {
+  if (!ev.target.dataset.k) return;
+  commit(); if (ev.target.dataset.k === 'type') refreshPanel();
+});
+panel.addEventListener('click', ev => { const b = ev.target.closest('[data-act]'); if (b) act(b.dataset.act); });
+
+/* ---------- export ---------- */
+async function renderFrame(i, k, type, q){
+  const c = document.createElement('canvas'); c.width = FW * k; c.height = Math.round(H() * k);
+  const x = c.getContext('2d'); x.scale(k, k); x.translate(-i * FW, 0); drawScene(x, true, k);
+  return new Promise(r => c.toBlob(r, type, q));
+}
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u){ let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files){
+  const enc = new TextEncoder(), parts = [], cd = []; let off = 0;
+  const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  for (const f of files){
+    const nm = enc.encode(f.name), crc = crc32(f.data), n = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(10, time, true); lh.setUint16(12, date, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, n, true); lh.setUint32(22, n, true); lh.setUint16(26, nm.length, true);
+    parts.push(lh.buffer, nm, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(12, time, true); ch.setUint16(14, date, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, n, true); ch.setUint32(24, n, true); ch.setUint16(28, nm.length, true); ch.setUint32(42, off, true);
+    cd.push(ch.buffer, nm); off += 30 + nm.length + n;
+  }
+  let cdSize = 0; cd.forEach(p => cdSize += p.byteLength);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...cd, e.buffer], {type:'application/zip'});
+}
+function saveBlob(blob, name){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+}
+async function nativeShare(items, title){            // phone app: hand the files to the system share sheet (Save to Photos, Instagram, …)
+  const {Filesystem, Share} = Capacitor.Plugins, files = [];
+  for (const it of items){
+    const data = (await blob2url(it.blob)).split(',')[1];
+    files.push((await Filesystem.writeFile({path:it.name, data, directory:'CACHE'})).uri);
+  }
+  await Share.share({title, files});
+}
+async function download(){
+  const type = $('dlType').value, q = parseFloat($('dlQ').value), k = parseInt($('dlK').value), zip = $('dlZip').value === '1', ext = type === 'image/png' ? 'png' : 'jpg';
+  const btn = $('dlGo'); btn.disabled = true;
+  try{
+    const items = [];
+    for (let i = 0; i < state.frames; i++){
+      btn.textContent = `Se generează ${i + 1}/${state.frames}…`;
+      items.push({name:`carusel-${String(i + 1).padStart(2, '0')}.${ext}`, blob:await renderFrame(i, k, type, q)});
+    }
+    if (NATIVE){ $('dlgDl').close(); await nativeShare(items, 'Carusel'); }
+    else if (zip){ const files = []; for (const it of items) files.push({name:it.name, data:new Uint8Array(await it.blob.arrayBuffer())}); saveBlob(makeZip(files), 'carusel.zip'); }
+    else for (const it of items){ saveBlob(it.blob, it.name); await new Promise(r => setTimeout(r, 350)); }
+    $('dlgDl').close(); if (!NATIVE) toast('Gata — ' + state.frames + ' cadre exportate');
+  }catch(e){ if (!/cancel/i.test(String(e && e.message))) toast('Eroare la export: ' + (e && e.message)); }
+  btn.disabled = false; btn.textContent = DL_LABEL;
+}
+async function preview(){
+  const strip = $('pvStrip'); strip.innerHTML = ''; $('dlgPv').showModal();
+  for (let i = 0; i < state.frames; i++){
+    const im = new Image(); im.src = URL.createObjectURL(await renderFrame(i, 0.5, 'image/jpeg', 0.85)); strip.appendChild(im);
+  }
+  strip.scrollLeft = 0; pvInfo();
+}
+function pvInfo(){ const s = $('pvStrip'); $('pvInfo').textContent = (Math.round(s.scrollLeft / Math.max(1, s.clientWidth)) + 1) + ' / ' + state.frames + '  ·  glisează stânga–dreapta'; }
+$('pvStrip').addEventListener('scroll', pvInfo);
+
+/* ---------- project files ---------- */
+const blob2url = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
+async function saveProject(){
+  const used = new Set(state.els.map(e => e.img).filter(Boolean)), imgs = {};
+  for (const id of used) imgs[id] = await blob2url(images.get(id).blob);
+  const blob = new Blob([JSON.stringify({app:'carusel-studio', v:1, state, images:imgs})], {type:'application/json'});
+  if (NATIVE) nativeShare([{name:'proiect-carusel.json', blob}], 'Proiect Carusel').catch(() => {});
+  else saveBlob(blob, 'proiect-carusel.json');
+}
+$('fProj').addEventListener('change', async ev => {
+  const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+  try{
+    const p = JSON.parse(await f.text()); if (p.app !== 'carusel-studio') throw 0;
+    for (const [id, url] of Object.entries(p.images)) await addBlob(await (await fetch(url)).blob(), id);
+    state = p.state; sel = null; commit(); fit(); refreshPanel();
+  }catch(e){ toast('Fișierul nu este un proiect Carusel Studio valid'); }
+});
+
+/* ---------- toolbar wiring ---------- */
+$('bAdd').onclick = () => { pickFor = null; $('fImg').click(); };
+$('fImg').addEventListener('change', ev => { addFiles(ev.target.files); ev.target.value = ''; });
+$('bText').onclick = addText;
+$('bUndo').onclick = () => travel(-1);
+$('bRedo').onclick = () => travel(1);
+$('bZo').onclick = () => setZoom(view.z / 1.25);
+$('bZi').onclick = () => setZoom(view.z * 1.25);
+$('bFit').onclick = fit;
+$('bPrev').onclick = preview;
+$('bDl').onclick = () => $('dlgDl').showModal();
+$('dlGo').onclick = download;
+$('dlQ').oninput = () => $('dlQv').textContent = Math.round($('dlQ').value * 100) + '%';
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+
+$('bPanel').onclick = () => { $('bPanel').classList.toggle('on', !document.body.classList.toggle('nopanel')); };
+$('hint').innerHTML = COARSE ? 'Apasă „＋” ca să adaugi imagini.<br>Liniile punctate arată unde se taie cadrele.' : 'Trage imagini aici sau apasă „＋ Imagini”.<br>Liniile punctate arată unde se taie cadrele caruselului.';
+if (NATIVE){ $('dlZip').closest('.row').style.display = 'none'; $('dlTitle').textContent = 'Salvează cadrele'; $('dlGo').textContent = DL_LABEL; }
+/* Phone apps update themselves: if the published version is newer, download it, keep it in local storage and restart into it.
+   mobile/loader.html decides at launch whether to run the stored copy or the one shipped inside the app. */
+async function checkUpdate(){
+  try{ localStorage.removeItem('cs_pending'); }catch(e){}       // we started fine, so this copy is good
+  if (!NATIVE) return;
+  try{
+    const r = await fetch(UPDATE_URL + 'version.json?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) return;
+    const v = (await r.json()).v; if (!(v > APP_VERSION)) return;
+    const html = await (await fetch(UPDATE_URL + 'index.html?t=' + Date.now(), {cache:'no-store'})).text();
+    if (!html.includes('const APP_VERSION = ' + v + ';') || !html.trimEnd().endsWith('</html>')) return;   // incomplete or mismatched download
+    localStorage.setItem('cs_html', html); localStorage.setItem('cs_v', String(v));
+    toast('Se actualizează la versiunea ' + v + '…'); await saveLocal(); setTimeout(() => location.reload(), 900);
+  }catch(e){}
+}
+(async () => { await loadLocal(); commit(); refreshPanel(); fit(); checkUpdate(); })();
+</script>
+</body>
+</html>
