@@ -28,7 +28,10 @@ main{flex:1;display:flex;min-height:0}
 .stage{flex:1;position:relative;background:var(--stage);min-width:0}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #scroller{position:absolute;inset:0;overflow:auto;touch-action:pan-x pan-y;-webkit-tap-highlight-color:transparent}
-#bPanel{display:none}
+#bPanel,#bApp{display:none}
+body.web #bApp{display:inline-block}
+a.btn{display:block;text-decoration:none;color:var(--text)}
+#appList .btn.on{border-color:var(--accent)}
 #hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;color:#6d737c;font-size:15px;text-align:center;padding:24px}
 .stage.drop::after{content:"";position:absolute;inset:10px;border:2px dashed var(--accent);border-radius:12px;pointer-events:none}
 aside{width:290px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:14px;-webkit-user-select:none}
@@ -70,7 +73,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
   aside{width:auto;border-left:0;border-top:1px solid var(--line);max-height:40vh;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
   body.nopanel aside{display:none}
   header{flex-wrap:nowrap;gap:6px;padding:6px 8px}
-  header .brand,.lbl,.zoomlbl,#bZo,#bZi{display:none}
+  header .brand,.lbl,.zoomlbl,#bZo,#bZi,body.web #bApp{display:none}
   #bPanel{display:inline-block}
   #bPanel.on{border-color:var(--accent);color:var(--accent)}
   .btn{padding:9px 12px;font-size:15px}
@@ -95,6 +98,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <button class="btn" id="bFit" title="Potrivește pe ecran">⤢<span class="lbl"> Potrivește</span></button>
   <button class="btn" id="bPrev">▶<span class="lbl"> Previzualizare</span></button>
   <button class="btn on" id="bPanel" title="Arată/ascunde setările">☰</button>
+  <button class="btn" id="bApp" title="Descarcă aplicația pentru calculator sau telefon">⤓<span class="lbl"> Aplicație</span></button>
   <button class="btn primary" id="bDl">↓<span class="lbl"> Descarcă</span></button>
 </header>
 <main>
@@ -118,6 +122,18 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <div class="dlgbtns"><button class="btn" data-close>Renunță</button><button class="btn primary" id="dlGo" autofocus>Descarcă</button></div>
 </dialog>
 
+<dialog id="dlgApp">
+  <h2>Descarcă aplicația</h2>
+  <div class="tpl" id="appList"></div>
+  <div class="tip">
+    <b>Mac:</b> la prima deschidere, Configurări sistem → Intimitate și securitate → „Deschide oricum”.<br>
+    <b>Windows:</b> dezarhivează, pornește <i>Carusel Studio.exe</i>; la avertisment: „Mai multe informații” → „Rulare oricum”.<br>
+    <b>Android:</b> deschide fișierul și permite instalarea din această sursă.<br>
+    <b>iPhone:</b> nu există fișier de descărcat; folosește această pagină în Safari.
+  </div>
+  <div class="dlgbtns"><button class="btn" data-close>Închide</button></div>
+</dialog>
+
 <dialog id="dlgPv">
   <h2>Așa va arăta la glisare</h2>
   <div id="pvStrip"></div>
@@ -136,8 +152,16 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 2;                                        // bumped by publish.sh
+const APP_VERSION = 3;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
+const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
+const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
+const APPS = [
+  {os:/Windows/, n:'Windows', d:'Windows 10 și 11, 64 de biți · arhivă ZIP, 110 MB', f:'CaruselStudio-Windows.zip'},
+  {os:null, n:'Mac — Apple Silicon', d:'Mac cu procesor M1 sau mai nou · 93 MB', f:'CaruselStudio-Mac-AppleSilicon.zip'},
+  {os:null, n:'Mac — Intel', d:'Mac mai vechi, cu procesor Intel · 100 MB', f:'CaruselStudio-Mac-Intel.zip'},
+  {os:/Android/, n:'Android', d:'Fișier APK pentru telefon sau tabletă · 4 MB', f:'CaruselStudio-Android.apk'},
+];
 const DL_LABEL = NATIVE ? 'Salvează / Partajează' : 'Descarcă';
 const KEY = IS_MAC ? {mod:'⌘', alt:'⌥', shift:'⇧'} : {mod:'Ctrl', alt:'Alt', shift:'Shift'};
 const fresh = () => ({format:'4:5', frames:3, bg:{type:'solid', c1:'#ffffff', c2:'#f1d9c4', angle:0}, gap:30, rad:0, tpl:null, els:[]});
@@ -578,6 +602,7 @@ function act(a){
   if (a.startsWith('tpl:')) return template(a.slice(4));
   if (a.startsWith('col:')) return collage(+a.slice(4));
   if (a.startsWith('fn:')){ state.frames = clamp(+a.slice(3), 1, MAXF); commit(); fit(); refreshPanel(); return; }
+  if (a === 'getapp') return $('dlgApp').showModal();
   if (a === 'save') return saveProject();
   if (a === 'open') return $('fProj').click();
   if (a === 'new'){ if (!state.els.length || confirm('Ștergi tot și începi un proiect nou?')){ state = fresh(); sel = null; commit(); fit(); refreshPanel(); } return; }
@@ -717,6 +742,7 @@ function refreshPanel(){
     </div>
     <h3>Proiect</h3><div class="grid2"><button class="btn" data-act="save">Salvează…</button><button class="btn" data-act="open">Deschide…</button></div>
     <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
+    ${WEB ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="getapp">⤓ Descarcă aplicația…</button></div>' : ''}
     <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor. <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
   } else {
     const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">Șterge</button></div>`;
@@ -850,6 +876,9 @@ $('dlGo').onclick = download;
 $('dlQ').oninput = () => $('dlQv').textContent = Math.round($('dlQ').value * 100) + '%';
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
 
+document.body.classList.toggle('web', WEB);
+$('bApp').onclick = () => $('dlgApp').showModal();
+$('appList').innerHTML = APPS.map(a => `<a class="btn ${a.os && a.os.test(navigator.userAgent) ? 'on' : ''}" href="${APP_FILES + a.f}" download>${a.n}<small>${a.d}</small></a>`).join('');
 $('bPanel').onclick = () => { $('bPanel').classList.toggle('on', !document.body.classList.toggle('nopanel')); };
 $('hint').innerHTML = COARSE ? 'Apasă „＋” ca să adaugi imagini.<br>Liniile punctate arată unde se taie cadrele.' : 'Trage imagini aici sau apasă „＋ Imagini”.<br>Liniile punctate arată unde se taie cadrele caruselului.';
 if (NATIVE){ $('dlZip').closest('.row').style.display = 'none'; $('dlTitle').textContent = 'Salvează cadrele'; $('dlGo').textContent = DL_LABEL; }
