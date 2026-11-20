@@ -29,6 +29,15 @@ main{flex:1;display:flex;min-height:0}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #scroller{position:absolute;inset:0;overflow:auto;touch-action:pan-x pan-y;-webkit-tap-highlight-color:transparent}
 #bPanel,#bApp{display:none}
+dialog input[type=text]{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:16px;-webkit-user-select:text;user-select:text}
+#libList{max-height:46vh;overflow:auto;margin-top:8px}
+.pitem{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:8px;margin:6px 0;cursor:pointer;background:var(--panel2)}
+.pitem:hover{border-color:#555b64}
+.pitem.on{border-color:var(--accent)}
+.pitem img{width:96px;height:48px;object-fit:cover;object-position:left;border-radius:4px;background:#fff;flex:none}
+.pmeta{flex:1;min-width:0}
+.pmeta b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pmeta small{color:var(--muted)}
 body.web #bApp{display:inline-block}
 a.btn{display:block;text-decoration:none;color:var(--text)}
 #appList .btn.on{border-color:var(--accent)}
@@ -74,7 +83,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
   body.nopanel aside{display:none}
   header{flex-wrap:nowrap;gap:4px;padding:6px 8px}
   header .btn{padding:8px 0;flex:0 0 36px;text-align:center}
-  header .brand,.lbl,.zoomlbl,#bZo,#bZi,body.web #bApp{display:none}
+  header .brand,.lbl,.zoomlbl,#bZo,#bZi,#bFit,body.web #bApp{display:none}
   #bPanel{display:inline-block}
   #bPanel.on{border-color:var(--accent);color:var(--accent)}
   .btn{padding:9px 12px;font-size:15px}
@@ -89,6 +98,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
 <header>
   <div class="brand">Carusel<span>Studio</span></div>
   <button class="btn" id="bNew" title="Proiect nou"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 1.5h5l3.5 3.5v9.5h-8.500z"/><path d="M9 1.5v3.500h3.500"/></svg><span class="lbl"> Nou</span></button>
+  <button class="btn" id="bLib" title="Proiecte salvate"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" style="vertical-align:-2px"><path d="M1.500 4v8.500h13V5.500H8L6.500 3.500h-5z"/></svg><span class="lbl"> Proiecte</span></button>
   <button class="btn" id="bAdd">＋<span class="lbl"> Imagini</span></button>
   <button class="btn" id="bText">T<span class="lbl"> Text</span></button>
   <button class="btn icon" id="bUndo">↶</button>
@@ -124,6 +134,20 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <div class="dlgbtns"><button class="btn" data-close>Renunță</button><button class="btn primary" id="dlGo" autofocus>Descarcă</button></div>
 </dialog>
 
+<dialog id="dlgNew">
+  <h2>Salvezi proiectul curent?</h2>
+  <div class="tip" style="margin:0 0 10px">Îl găsești apoi la „Proiecte” și îl poți redeschide oricând.</div>
+  <div class="row"><input type="text" id="newName" maxlength="60" placeholder="Numele proiectului"></div>
+  <div class="dlgbtns"><button class="btn" data-close>Renunță</button><button class="btn danger" id="newSkip">Nu salva</button><button class="btn primary" id="newSave" autofocus>Salvează și continuă</button></div>
+</dialog>
+
+<dialog id="dlgLib">
+  <h2>Proiecte</h2>
+  <div class="row"><input type="text" id="libName" maxlength="60" placeholder="Numele proiectului"><button class="btn primary" id="libSave">Salvează-l pe cel curent</button></div>
+  <div id="libList"></div>
+  <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" id="libImport">Deschide din fișier…</button><button class="btn" id="libExport">Exportă ca fișier…</button><button class="btn" data-close autofocus>Închide</button></div>
+</dialog>
+
 <dialog id="dlgApp">
   <h2>Descarcă aplicația</h2>
   <div class="tpl" id="appList"></div>
@@ -154,7 +178,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 4;                                        // bumped by publish.sh
+const APP_VERSION = 5;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
@@ -171,7 +195,8 @@ let state = fresh();
 let sel = null;
 const images = new Map();           // id -> {blob, full, prev, w, h}
 const view = {z:0.4, offX:PAD, offY:PAD};
-let drag = null, tap = null, pinch = null, hist = [], hi = -1;
+let drag = null, tap = null, lastTap = 0, pinch = null, hist = [], hi = -1;
+let proj = {id:null, name:''};                     // library entry the current work belongs to, if it was saved
 
 const $ = id => document.getElementById(id);
 const sc = $('scroller'), cv = $('cv'), ctx = cv.getContext('2d'), spacer = $('spacer'), panel = $('panel');
@@ -214,7 +239,7 @@ async function saveLocal(){
   try{
     const used = new Set(state.els.map(e => e.img).filter(Boolean));
     const imgs = [...images].filter(([id]) => used.has(id)).map(([id, v]) => ({id, blob:v.blob}));
-    const d = await db(); d.transaction('kv', 'readwrite').objectStore('kv').put({state:JSON.stringify(state), imgs}, 'project');
+    const d = await db(); d.transaction('kv', 'readwrite').objectStore('kv').put({state:JSON.stringify(state), imgs, proj}, 'project');
   }catch(e){}
 }
 async function loadLocal(){
@@ -223,7 +248,7 @@ async function loadLocal(){
     const rec = await new Promise((res, rej) => { const r = d.transaction('kv').objectStore('kv').get('project'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     if (!rec) return;
     for (const i of rec.imgs) await addBlob(i.blob, i.id).catch(() => {});
-    state = JSON.parse(rec.state);
+    state = JSON.parse(rec.state); if (rec.proj) proj = rec.proj;
     state.els = state.els.filter(e => e.type !== 'image' || !e.img || images.has(e.img));
   }catch(e){}
 }
@@ -528,6 +553,7 @@ sc.addEventListener('pointerup', ev => {
     if (Math.hypot(ev.clientX - tap.x, ev.clientY - tap.y) < 10){
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
       sel = tap.id; refreshPanel(); render();
+      if (tap.id == null){ const now = Date.now(); if (now - lastTap < 350) fit(); lastTap = now; }
     }
     tap = null;
   }
@@ -605,9 +631,9 @@ function act(a){
   if (a.startsWith('col:')) return collage(+a.slice(4));
   if (a.startsWith('fn:')){ state.frames = clamp(+a.slice(3), 1, MAXF); commit(); fit(); refreshPanel(); return; }
   if (a === 'getapp') return $('dlgApp').showModal();
-  if (a === 'save') return saveProject();
-  if (a === 'open') return $('fProj').click();
-  if (a === 'new'){ if (!state.els.length || confirm('Ștergi tot și începi un proiect nou?')){ state = fresh(); sel = null; commit(); fit(); refreshPanel(); } return; }
+  if (a === 'save') return quickSave();
+  if (a === 'lib') return showLib();
+  if (a === 'new') return leave(newProject);
   if (!e) return;
   if (a === 'pick') return pickImage(e.id);
   if (a === 'del'){ state.els.splice(i, 1); sel = null; }
@@ -742,7 +768,7 @@ function refreshPanel(){
       <button class="btn" data-act="tpl:film">Bandă continuă<small>Pozele întregi, una lângă alta</small></button>
       <button class="btn" data-act="tpl:two">Două rânduri<small>Două benzi suprapuse</small></button>
     </div>
-    <h3>Proiect</h3><div class="grid2"><button class="btn" data-act="save">Salvează…</button><button class="btn" data-act="open">Deschide…</button></div>
+    <h3>Proiect${proj.name ? ' · ' + esc(proj.name) : ''}</h3><div class="grid2"><button class="btn" data-act="save">Salvează</button><button class="btn" data-act="lib">Proiecte…</button></div>
     <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
     ${WEB ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="getapp">⤓ Descarcă aplicația…</button></div>' : ''}
     <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor. <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
@@ -859,9 +885,80 @@ $('fProj').addEventListener('change', async ev => {
   try{
     const p = JSON.parse(await f.text()); if (p.app !== 'carusel-studio') throw 0;
     for (const [id, url] of Object.entries(p.images)) await addBlob(await (await fetch(url)).blob(), id);
-    state = p.state; sel = null; commit(); fit(); refreshPanel();
+    await keepCurrent(); proj = {id:null, name:''};
+    state = p.state; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); if ($('dlgLib').open) $('dlgLib').close();
   }catch(e){ toast('Fișierul nu este un proiect Carusel Studio valid'); }
 });
+
+/* ---------- project library (kept in this device's browser storage) ----------
+   'lib:<id>' holds the small listing entry (name, date, thumbnail), 'libdata:<id>' the project itself with its photos. */
+const idb = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const kv = async mode => (await db()).transaction('kv', mode).objectStore('kv');
+const defName = () => 'Proiect ' + new Date().toLocaleDateString('ro-RO');
+function makeThumb(){
+  const h = 96, k = h / H(), c = document.createElement('canvas'); c.width = Math.min(480, Math.round(W() * k)); c.height = h;
+  const x = c.getContext('2d'); x.scale(k, k); drawScene(x, false, k);
+  return c.toDataURL('image/jpeg', 0.7);
+}
+async function libSave(name){
+  proj = {id:proj.id || uid(), name};
+  const used = new Set(state.els.map(e => e.img).filter(Boolean));
+  const imgs = [...images].filter(([k]) => used.has(k)).map(([k, v]) => ({id:k, blob:v.blob}));
+  const entry = {id:proj.id, name, date:Date.now(), frames:state.frames, format:state.format, thumb:makeThumb()}, data = {state:JSON.stringify(state), imgs};
+  const s = await kv('readwrite'); s.put(entry, 'lib:' + proj.id); await idb(s.put(data, 'libdata:' + proj.id));
+  scheduleSave();
+}
+async function libList(){ return (await idb((await kv('readonly')).getAll(IDBKeyRange.bound('lib:', 'lib:￿')))).sort((a, b) => b.date - a.date); }
+async function libOpen(id){
+  const rec = await idb((await kv('readonly')).get('libdata:' + id)), entry = await idb((await kv('readonly')).get('lib:' + id));
+  if (!rec){ toast('Proiectul nu a fost găsit'); return; }
+  for (const i of rec.imgs) if (!images.has(i.id)) await addBlob(i.blob, i.id).catch(() => {});
+  state = JSON.parse(rec.state); state.els = state.els.filter(e => e.type !== 'image' || !e.img || images.has(e.img));
+  proj = {id, name:entry ? entry.name : ''}; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel();
+}
+async function libDelete(id){
+  const s = await kv('readwrite'); s.delete('lib:' + id); await idb(s.delete('libdata:' + id));
+  if (proj.id === id){ proj = {id:null, name:''}; scheduleSave(); refreshPanel(); }
+}
+function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); }
+async function keepCurrent(){ if (state.els.length) await libSave(proj.name || defName()).catch(() => {}); }   // never lose work silently
+async function quickSave(){
+  if (!proj.id) return showLib();
+  try{ await libSave(proj.name); toast('Salvat: ' + proj.name); }catch(e){ toast('Nu s-a putut salva: ' + e.message); }
+}
+let afterLeave = null;
+function leave(then){                                 // ask what to do with the current project before replacing it
+  if (!state.els.length) return then();
+  afterLeave = then; $('newName').value = proj.name || defName(); $('dlgNew').showModal();
+}
+function leaveDone(){ $('dlgNew').close(); const f = afterLeave; afterLeave = null; if (f) f(); }
+$('newSkip').onclick = leaveDone;
+$('newSave').onclick = async () => {
+  const n = $('newName').value.trim() || defName();
+  try{ await libSave(n); toast('Salvat: ' + n); }catch(e){ toast('Nu s-a putut salva: ' + e.message); return; }
+  leaveDone();
+};
+async function renderLib(){
+  const list = await libList().catch(() => []);
+  $('libList').innerHTML = list.length ? list.map(p => `<div class="pitem ${p.id === proj.id ? 'on' : ''}" data-id="${p.id}"><img src="${p.thumb}" alt=""><div class="pmeta"><b>${esc(p.name)}</b><small>${new Date(p.date).toLocaleString('ro-RO', {dateStyle:'medium', timeStyle:'short'})} · ${p.frames} cadre · ${p.format}${p.id === proj.id ? ' · deschis acum' : ''}</small></div><button class="btn danger" data-del="${p.id}">Șterge</button></div>`).join('')
+    : '<div class="tip">Niciun proiect salvat încă. Dă-i un nume celui curent și apasă „Salvează-l pe cel curent”.</div>';
+}
+async function showLib(){ $('libName').value = proj.name || defName(); await renderLib(); if (!$('dlgLib').open) $('dlgLib').showModal(); }
+$('libSave').onclick = async () => {
+  const n = $('libName').value.trim() || defName();
+  try{ await libSave(n); toast('Salvat: ' + n); }catch(e){ toast('Nu s-a putut salva: ' + e.message); }
+  renderLib(); refreshPanel();
+};
+$('libList').addEventListener('click', async ev => {
+  const del = ev.target.closest('[data-del]'), item = ev.target.closest('.pitem');
+  if (del){ if (confirm('Ștergi definitiv acest proiect salvat?')){ await libDelete(del.dataset.del); renderLib(); } return; }
+  if (!item) return;
+  $('dlgLib').close();
+  if (item.dataset.id !== proj.id) leave(() => libOpen(item.dataset.id));
+});
+$('libImport').onclick = () => $('fProj').click();
+$('libExport').onclick = saveProject;
+$('bLib').onclick = showLib;
 
 /* ---------- toolbar wiring ---------- */
 $('bAdd').onclick = () => { pickFor = null; $('fImg').click(); };
