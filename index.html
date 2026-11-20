@@ -151,6 +151,12 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <div class="dlgbtns"><button class="btn" data-close>Închide</button></div>
 </dialog>
 
+<dialog id="dlgAsk">
+  <h2 id="askT"></h2>
+  <div id="askM" style="line-height:1.5"></div>
+  <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" data-close>Renunță</button><button class="btn" id="askB"></button><button class="btn primary" id="askA" autofocus></button></div>
+</dialog>
+
 <dialog id="dlgNew">
   <h2>Salvezi proiectul curent?</h2>
   <div class="tip" style="margin:0 0 10px">Îl găsești apoi la „Proiecte” și îl poți redeschide oricând.</div>
@@ -195,7 +201,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 8;                                        // bumped by publish.sh
+const APP_VERSION = 9;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
@@ -292,24 +298,41 @@ async function addFiles(files, at){
   const target = pickFor; pickFor = null;
   const list = [...files].filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif|heic)$/i.test(f.name || ''));
   if (!list.length) return;
-  const c = at || viewCenter(); let n = 0, bad = 0, last = null;
-  const slots = state.els.filter(isSlot).sort((a, b) => (a.x + a.w / 2) - (b.x + b.w / 2) || a.y - b.y);
-  const hit = target ? state.els.find(e => e.id === target) : at ? hitTest(at.x, at.y) : null;
-  if (hit && hit.type === 'image' && (target || isSlot(hit))){ const i = slots.indexOf(hit); if (i >= 0) slots.splice(i, 1); slots.unshift(hit); }
-  for (const f of list){
-    try{
-      const id = await addBlob(f), im = images.get(id), cell = slots.shift();
-      if (cell){ Object.assign(cell, {img:id, cx:.5, cy:.5, cz:1}); last = cell; }
-      else {
-        const h = H() * 0.62, w = h * im.w / im.h, o = n * 70;
-        last = newImg(id, c.x - w / 2 + o, c.y - h / 2 + o * 0.4, w, h);
-        state.els.push(last); n++;
-      }
-    }catch(e){ bad++; }
-  }
-  if (last) sel = last.id;
+  const ids = []; let bad = 0, last = null;
+  for (const f of list){ try{ ids.push(await addBlob(f)); }catch(e){ bad++; } }
   if (bad) toast(bad + ' fișier(e) nu au putut fi citite (format neacceptat de browser)');
-  commit(); refreshPanel(); render();
+  if (!ids.length) return;
+  const into = cell => { Object.assign(cell, {img:ids.shift(), cx:.5, cy:.5, cz:1}); last = cell; };
+  const done = () => { if (last && state.els.includes(last)) sel = last.id; commit(); refreshPanel(); render(); };
+  const hit = target ? state.els.find(e => e.id === target) : at ? hitTest(at.x, at.y) : null;
+  if (hit && hit.type === 'image' && (target || isSlot(hit))) into(hit);          // the cell that was tapped or dropped on comes first
+  const slots = state.els.filter(isSlot).sort((a, b) => (a.x + a.w / 2) - (b.x + b.w / 2) || a.y - b.y), tp = tplActive();
+  const free = slots.length, extra = ids.length - free;
+  while (ids.length && slots.length) into(slots.shift());
+  if (!tp){                                                                       // no template: loose photos, cascaded
+    const c = at || viewCenter();
+    ids.splice(0).forEach((id, n) => { const im = images.get(id), h = H() * 0.62, w = h * im.w / im.h, o = n * 70; last = newImg(id, c.x - w / 2 + o, c.y - h / 2 + o * 0.4, w, h); state.els.push(last); });
+    return done();
+  }
+  if (extra > 0){                                                                 // more photos than the template has room for
+    const total = photoCount() + extra, need = framesFor(tp[0], tp[1], total), room = capacity(tp[0], tp[1], need), grow = need > state.frames;
+    const r = await ask('Mai multe poze decât locuri', (free ? `Șablonul mai avea ${pl(free, 'loc liber', 'locuri libere')}, iar tu ai ales cu ${extra} mai multe poze.` : `Șablonul nu mai are locuri libere, iar tu ai ales ${pl(extra, 'poză', 'poze')}.`) + (grow ? (room < total ? ` Pe ${need} cadre încap ${room} din ${total}.` : '') : ' Nu se mai poate extinde.'),
+      grow ? `Extinde la ${need} cadre` : null, free ? `Pune doar ${pl(free, 'poză', 'poze')}` : 'Nu adăuga');
+    if (r === 'a'){
+      ids.splice(0).forEach((id, n) => state.els.push(newImg(id, W() + n, 0, 1, 1)));   // parked to the right so they are placed last
+      state.frames = need; applyTpl(tp[0], tp[1], true);       // extend, and leave no empty cell behind
+      if (room < total) toast(pl(total - room, 'poză nu a mai încăput', 'poze nu au mai încăput'));
+      return;
+    }
+    return done();
+  }
+  done();
+  const left = state.els.filter(isSlot).length;
+  if (left && !target){                                                           // fewer photos than cells: offer to drop the empty ones
+    const P = photoCount(), need = framesFor(tp[0], tp[1], P);
+    const r = await ask('Mai puține poze decât locuri', `Șablonul mai are ${pl(left, 'loc gol', 'locuri goale')}. Ai ${pl(P, 'poză', 'poze')}.`, `Restrânge la ${pl(P, 'poză', 'poze')}`, 'Păstrează locurile goale');
+    if (r === 'a'){ state.frames = need; applyTpl(tp[0], tp[1], true); }
+  }
 }
 
 /* ---------- text ---------- */
@@ -630,7 +653,7 @@ sc.addEventListener('pointermove', ev => {
     return;
   }
   const e = getSel(), o = drag.orig; if (!e) return;
-  drag.moved = true; drag.guides = null;
+  drag.moved = true; drag.guides = null; if (e.d) e.d = 2;
   const thr = 7 / view.z, T = snapTargets();
   if (drag.mode === 'move'){
     let nx = o.x + x - drag.sx, ny = o.y + y - drag.sy;
@@ -764,11 +787,11 @@ window.addEventListener('keydown', ev => {
 function act(a){
   const e = getSel(), i = state.els.indexOf(e);
   if (a.startsWith('fmt:')){ state.format = a.slice(4); commit(); fit(); refreshPanel(); return; }
-  if (a === 'f-' || a === 'f+'){ state.frames = clamp(state.frames + (a === 'f+' ? 1 : -1), 1, MAXF); commit(); layout(); refreshPanel(); return; }
+  if (a === 'f-' || a === 'f+') return setFrames(state.frames + (a === 'f+' ? 1 : -1));
   if (a.startsWith('tpl:')) return template(a.slice(4));
-  if (a.startsWith('col:')) return collage(+a.slice(4));
-  if (a.startsWith('des:')) return design(+a.slice(4));
-  if (a.startsWith('fn:')){ state.frames = clamp(+a.slice(3), 1, MAXF); commit(); fit(); refreshPanel(); return; }
+  if (a.startsWith('col:')) return chooseTemplate('col', +a.slice(4));
+  if (a.startsWith('des:')) return chooseTemplate('des', +a.slice(4));
+  if (a.startsWith('fn:')) return setFrames(+a.slice(3));
   if (a === 'getapp') return $('dlgApp').showModal();
   if (a === 'feedback') return void window.open(FEEDBACK_URL, '_blank');
   if (a === 'save') return quickSave();
@@ -857,25 +880,86 @@ const COLLAGES = [
   {n:'Două benzi decalate', p:1.5, r:[[0,.03,1.5,.46],[.75,.51,1.5,.46]]},
   {n:'Erou + trei mici', p:3, r:[[0,0,2,1],[2,0,1,T3],[2,T3,1,T3],[2,2*T3,1,T3]]},
 ];
-function collage(i, live){
-  const T = COLLAGES[i], g = state.gap ?? 30, rad = state.rad ?? 0, w = W(), h = H(), a = g / 2, rects = [];
-  for (let t = -1; t * T.p < state.frames; t++) for (const r of T.r){
+function collageRects(T, frames, g){
+  const w = frames * FW, h = H(), a = g / 2, rects = [];
+  for (let t = -1; t * T.p < frames; t++) for (const r of T.r){
     let x0 = Math.max(0, (t * T.p + r[0]) * FW), x1 = Math.min(w, (t * T.p + r[0] + r[2]) * FW), y0 = r[1] * h, y1 = (r[1] + r[3]) * h;
     if (x1 - x0 < .3 * FW) continue;                                   // sliver left over at the ends of the strip
     x0 += x0 < 1 ? g : a; x1 -= x1 > w - 1 ? g : a; y0 += y0 < 1 ? g : a; y1 -= y1 > h - 1 ? g : a;
     rects.push([x0, y0, x1 - x0, y1 - y0]);
   }
-  const byPos = (cx1, y1, cx2, y2) => Math.abs(cx1 - cx2) > 1 ? cx1 - cx2 : y1 - y2;   // left to right, then top to bottom
+  return rects;
+}
+const byPos = (cx1, y1, cx2, y2) => Math.abs(cx1 - cx2) > 1 ? cx1 - cx2 : y1 - y2;   // left to right, then top to bottom
+const photosInOrder = () => state.els.filter(e => e.type === 'image' && e.img).sort((p, q) => byPos(p.x + p.w / 2, p.y, q.x + q.w / 2, q.y));
+/* live = spacing slider is moving (no history entry); trim = remove cells that stay empty.
+   Photos beyond the template's capacity are removed, so callers ask the user first (chooseTemplate, addFiles, setFrames). */
+function collage(i, live, trim){
+  const T = COLLAGES[i], rad = state.rad ?? 0, rects = collageRects(T, state.frames, state.gap ?? 30);
   rects.sort((p, q) => byPos(p[0] + p[2] / 2, p[1], q[0] + q[2] / 2, q[1]));
-  const imgs = state.els.filter(e => e.type === 'image' && e.img).sort((p, q) => byPos(p.x + p.w / 2, p.y, q.x + q.w / 2, q.y));
-  const rest = state.els.filter(e => e.type !== 'image' && !e.d);
+  const imgs = photosInOrder(), rest = state.els.filter(e => e.type !== 'image' && !e.d);
   if (state.des != null){ imgs.forEach(e => Object.assign(e, {frame:'none', mask:'rect', shadow:false, border:0})); state.des = null; }
-  const cells = rects.map((r, k) => Object.assign(imgs[k] || newImg(null, 0, 0, 1, 1), {x:r[0], y:r[1], w:r[2], h:r[3], rot:0, radius:rad}));
-  state.els = [...cells, ...imgs.slice(rects.length), ...rest];      // photos first, text stays on top
+  let cells = rects.map((r, k) => Object.assign(imgs[k] || newImg(null, 0, 0, 1, 1), {x:r[0], y:r[1], w:r[2], h:r[3], rot:0, radius:rad}));
+  if (trim) cells = cells.filter(e => e.img);
+  state.els = [...cells, ...(live ? imgs.slice(rects.length) : []), ...rest];      // photos first, text stays on top
   state.tpl = i; if (!getSel()) sel = null;
   if (live){ render(); return; }
   commit(); fit(); refreshPanel();
 }
+
+/* ---------- template capacity: keeping photos and cells in step ---------- */
+const photoCount = () => state.els.filter(e => e.type === 'image' && e.img).length;
+const pl = (n, one, many) => n + ' ' + (n === 1 ? one : (n % 100 >= 20 || n % 100 === 0 ? 'de ' : '') + many);   // Romanian plural: 1 loc, 5 locuri, 20 de locuri
+const tplActive = () => state.tpl != null ? ['col', state.tpl] : state.des != null ? ['des', state.des] : null;
+function designCells(D, frames){
+  const w = frames * FW, ok = (it, t) => it.i && (t * D.p + it.x) * FW <= w - FW * .15;
+  let n = (D.first || []).filter(it => ok(it, 0)).length;
+  for (let t = 0; t * D.p < frames; t++) n += D.it.filter(it => ok(it, t)).length;
+  return n;
+}
+const capacity = (kind, i, frames) => kind === 'col' ? collageRects(COLLAGES[i], frames, state.gap ?? 30).length : designCells(DESIGNS[i], frames);
+function framesFor(kind, i, photos){ for (let f = 1; f <= MAXF; f++) if (capacity(kind, i, f) >= photos) return f; return MAXF; }
+const applyTpl = (kind, i, trim) => kind === 'col' ? collage(i, false, trim) : design(i, trim);
+function ask(title, msg, a, b){           // two-choice question; resolves 'a', 'b' or null when dismissed
+  return new Promise(res => {
+    const d = $('dlgAsk'); let r = null;
+    $('askT').textContent = title; $('askM').textContent = msg; $('askA').textContent = a || ''; $('askA').style.display = a ? '' : 'none'; $('askB').textContent = b;
+    $('askA').onclick = () => { r = 'a'; d.close(); }; $('askB').onclick = () => { r = 'b'; d.close(); };
+    d.onclose = () => res(r); d.showModal();
+  });
+}
+async function chooseTemplate(kind, i){
+  const P = photoCount(), f = state.frames, cap = capacity(kind, i, f);
+  if (P > cap){
+    const need = framesFor(kind, i, P), room = capacity(kind, i, need), grow = need > f && room > cap;
+    const r = await ask('Prea multe poze pentru acest șablon', `Ai ${pl(P, 'poză', 'poze')}, iar șablonul are ${pl(cap, 'loc', 'locuri')} pe ${pl(f, 'cadru', 'cadre')}.` + (grow && room < P ? ` Pe ${need} cadre încap ${room}.` : '') + (grow ? '' : ' Nu se poate extinde mai mult.'),
+      grow ? `Extinde la ${need} cadre` : null, `Scoate ${pl(P - cap, 'poză', 'poze')}`);
+    if (!r) return;
+    if (r === 'a') state.frames = need;
+    const lost = P - (r === 'a' ? room : cap);
+    applyTpl(kind, i, r === 'a');
+    if (lost > 0) toast(pl(lost, 'poză a fost scoasă', 'poze au fost scoase') + '. „Anulează” (↶) le aduce înapoi.');
+    return;
+  }
+  if (P > 0 && P < cap){
+    const r = await ask('Mai puține poze decât locuri', `Șablonul are ${pl(cap, 'loc', 'locuri')} pe ${pl(f, 'cadru', 'cadre')}, iar tu ai ${pl(P, 'poză', 'poze')}.`, `Restrânge la ${pl(P, 'poză', 'poze')}`, 'Păstrează locurile goale');
+    if (!r) return;
+    if (r === 'a'){ state.frames = framesFor(kind, i, P); return applyTpl(kind, i, true); }
+  }
+  applyTpl(kind, i);
+}
+async function setFrames(n){
+  n = clamp(n, 1, MAXF); if (n === state.frames) return;
+  const tp = tplActive();
+  if (!tp){ state.frames = n; commit(); fit(); refreshPanel(); return; }
+  const P = photoCount(), cap = capacity(tp[0], tp[1], n);
+  if (P > cap){
+    const r = await ask('Nu încap toate pozele', `Pe ${pl(n, 'cadru', 'cadre')} șablonul are ${pl(cap, 'loc', 'locuri')}, iar tu ai ${pl(P, 'poză', 'poze')}.`, `Rămâi la ${state.frames} cadre`, `Scoate ${pl(P - cap, 'poză', 'poze')}`);
+    if (r !== 'b') return;
+  }
+  state.frames = n; applyTpl(tp[0], tp[1]);
+}
+
 /* ---------- designed templates ----------
    Ready-made compositions: background, photo cells (i), shapes (s) and sample text (t). x/w are in frames, y/h a fraction of
    the height; text is placed by its centre with size z. The pattern in `it` repeats every p frames; `first` appears once. */
@@ -923,28 +1007,27 @@ const DESIGNS = [
     {i:1, x:.1, y:.1, w:.6, h:.46, r:-4, sh:1, b:14, bc:'#ffffff'}, {i:1, x:.52, y:.5, w:.66, h:.42, r:3, sh:1, b:14, bc:'#ffffff'}, {t:'📍', x:.18, y:.66, z:110},
     {i:1, x:1.3, y:.12, w:.58, h:.56, r:5, sh:1, b:14, bc:'#ffffff'}, {t:'azi', x:1.6, y:.8, z:120, st:'cal', c:'#444444'}, {t:'🌿', x:1.16, y:.12, z:120}]},
 ];
-function design(i){
-  const D = DESIGNS[i], h = H(), out = [];
-  const imgs = state.els.filter(e => e.type === 'image' && e.img).sort((p, q) => Math.abs(p.x + p.w / 2 - q.x - q.w / 2) > 1 ? (p.x + p.w / 2) - (q.x + q.w / 2) : p.y - q.y);
+function design(i, trim){
+  const D = DESIGNS[i], w = W(), h = H(), out = [], imgs = photosInOrder();
   const own = state.els.filter(e => e.type !== 'image' && !e.d);     // the user's own text and shapes stay
-  const per = D.it.filter(it => it.i).length, once = (D.first || []).filter(it => it.i).length;
-  if (per && imgs.length > once) state.frames = clamp(Math.max(state.frames, Math.ceil(Math.ceil((imgs.length - once) / per) * D.p)), 1, MAXF);   // make room for every photo
-  const w = W(); let k = 0;
-  const put = (it, t) => {
+  const edited = {}; if (state.des === i) state.els.forEach(e => { if (e.d === 2 && e.dk) edited[e.dk] = e; });   // template text/shapes the user changed are kept as they are
+  let k = 0;
+  const put = (it, t, key) => {
     const x0 = (t * D.p + it.x) * FW; if (x0 > w - FW * .15) return;
+    if (!it.i && edited[key]){ out.push(edited[key]); return; }
     if (it.t != null){
       const e = mkText(Object.assign({text:it.t.replace('{n}', String(t + 1).padStart(2, '0')), size:it.z, color:it.c || '#111111', bold:false}, DSTYLE[it.st]));
-      out.push(Object.assign(e, {x:x0 - e.w / 2, y:it.y * h - e.h / 2, rot:it.r || 0, d:1})); return;
+      out.push(Object.assign(e, {x:x0 - e.w / 2, y:it.y * h - e.h / 2, rot:it.r || 0, d:1, dk:key})); return;
     }
     const box = {x:x0, y:it.y * h, w:it.w === 'all' ? w : it.w * FW, h:it.h * h, rot:it.r || 0};
-    if (it.s) out.push(Object.assign({id:uid(), type:'shape', kind:it.s, opacity:it.o == null ? 1 : it.o, fill:it.c, nofill:false, stroke:'#111111', sw:0, radius:it.rad || 0, shadow:false, d:1}, box));
-    else out.push(Object.assign(imgs[k++] || newImg(null, 0, 0, 1, 1), box, {frame:it.f || 'none', mask:it.m || 'rect', shadow:!!it.sh, radius:it.rad || 0, border:it.b || 0, borderColor:it.bc || '#ffffff'}));
+    if (it.s) out.push(Object.assign({id:uid(), type:'shape', kind:it.s, opacity:it.o == null ? 1 : it.o, fill:it.c, nofill:false, stroke:'#111111', sw:0, radius:it.rad || 0, shadow:false, d:1, dk:key}, box));
+    else if (imgs[k] || !trim) out.push(Object.assign(imgs[k++] || newImg(null, 0, 0, 1, 1), box, {frame:it.f || 'none', mask:it.m || 'rect', shadow:!!it.sh, radius:it.rad || 0, border:it.b || 0, borderColor:it.bc || '#ffffff'}));
   };
-  (D.first || []).filter(it => it.i).forEach(it => put(it, 0));        // a full-width photo goes underneath everything
-  for (let t = 0; t * D.p < state.frames; t++) D.it.forEach(it => put(it, t));
-  (D.first || []).filter(it => !it.i).forEach(it => put(it, 0));
-  const spare = imgs.slice(k); spare.forEach(e => Object.assign(e, {frame:'none', mask:'rect', shadow:false, border:0, rot:0}));   // photos that did not fit keep a plain look
-  state.els = [...out, ...spare, ...own];
+  const first = D.first || [];
+  first.forEach((it, n) => { if (it.i) put(it, 0, 'f' + n); });        // a full-width photo goes underneath everything
+  for (let t = 0; t * D.p < state.frames; t++) D.it.forEach((it, n) => put(it, t, t + ':' + n));
+  first.forEach((it, n) => { if (!it.i) put(it, 0, 'f' + n); });
+  state.els = [...out, ...own];                                        // photos beyond the template's capacity are dropped; callers ask first
   state.bg = D.bg.length > 1 ? {type:'grad', c1:D.bg[0], c2:D.bg[1], angle:D.bg[2]} : Object.assign({}, state.bg, {type:'solid', c1:D.bg[0]});
   state.tpl = null; state.des = i; if (!getSel()) sel = null;
   commit(); fit(); refreshPanel();
@@ -1044,6 +1127,7 @@ function refreshPanel(){
 panel.addEventListener('input', ev => {
   const t = ev.target, k = t.dataset.k; if (!k) return;
   let obj = t.dataset.o === 'bg' ? state.bg : t.dataset.o === 'state' ? state : getSel(); if (!obj) return;
+  if (obj.d) obj.d = 2;                                    // a template's own text or shape, now customised
   if (t.dataset.o === 'fx'){ obj = obj.fx || (obj.fx = Object.assign({}, FX0)); fxLow = true; }   // quick low-res preview while dragging
   obj[k] = t.type === 'checkbox' ? t.checked : (t.type === 'range' || t.type === 'number') ? (parseFloat(t.value) || 0) : t.value;
   if (obj.type === 'text'){ obj.size = clamp(obj.size, 8, 2000); measure(obj); }
