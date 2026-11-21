@@ -163,7 +163,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
 <dialog id="dlgAsk">
   <h2 id="askT"></h2>
   <div id="askM" style="line-height:1.5"></div>
-  <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" data-close>Renunță</button><button class="btn" id="askB"></button><button class="btn primary" id="askA" autofocus></button></div>
+  <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" data-close id="askC">Renunță</button><button class="btn" id="askB"></button><button class="btn primary" id="askA" autofocus></button></div>
 </dialog>
 
 <dialog id="dlgNew">
@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 25;                                        // bumped by publish.sh
+const APP_VERSION = 26;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -343,8 +343,9 @@ async function addFiles(files, at){
   }
   if (extra > 0){                                                                 // more photos than the template has room for
     const total = photoCount() + extra, need = framesFor(tp[0], tp[1], total), room = capacity(tp[0], tp[1], need), grow = need > state.frames;
-    const r = await ask('Mai multe poze decât locuri', (free ? `Șablonul mai avea ${pl(free, 'loc liber', 'locuri libere')}, iar tu ai ales cu ${extra} mai multe poze.` : `Șablonul nu mai are locuri libere, iar tu ai ales ${pl(extra, 'poză', 'poze')}.`) + (grow ? (room < total ? ` Pe ${need} cadre încap ${room} din ${total}.` : '') : ' Nu se mai poate extinde.'),
-      grow ? `Extinde la ${need} cadre` : null, free ? `Pune doar ${pl(free, 'poză', 'poze')}` : 'Nu adăuga');
+    const fits = photoCount();                                                    // what the template holds as it is
+    const r = await ask('Prea multe poze pentru șablon', `Șablonul are loc pentru ${pl(fits, 'poză', 'poze')} pe ${pl(state.frames, 'cadru', 'cadre')}, iar tu ai ${total}. Vrei să reduci numărul de poze?` + (grow ? (room < total ? ` Chiar și pe ${need} cadre încap doar ${room}.` : '') : ' Șablonul nu se mai poate extinde.'),
+      grow ? `Nu, extinde la ${need} cadre` : null, free ? `Da, păstrează doar primele ${fits}` : `Da, nu mai adăuga ${pl(extra, 'poză', 'poze')}`);
     if (r === 'a'){
       ids.splice(0).forEach((id, n) => state.els.push(newImg(id, W() + n, 0, 1, 1)));   // parked to the right so they are placed last
       state.frames = need; applyTpl(tp[0], tp[1], true);       // extend, and leave no empty cell behind
@@ -358,8 +359,9 @@ async function addFiles(files, at){
   const left = state.els.filter(isSlot).length;
   if (left && !target){                                                           // fewer photos than cells: offer to drop the empty ones
     const P = photoCount(), need = framesFor(tp[0], tp[1], P);
-    const r = await ask('Mai puține poze decât locuri', `Șablonul mai are ${pl(left, 'loc gol', 'locuri goale')}. Ai ${pl(P, 'poză', 'poze')}.`, `Restrânge la ${pl(P, 'poză', 'poze')}`, 'Păstrează locurile goale');
-    if (r === 'a'){ state.frames = need; applyTpl(tp[0], tp[1], true); }
+    const r = await ask(pl(left, 'loc a rămas gol', 'locuri au rămas goale'), `Șablonul are ${pl(P + left, 'loc', 'locuri')} pe ${pl(state.frames, 'cadru', 'cadre')}, iar tu ai ${pl(P, 'poză', 'poze')}. Ca să fie complet, mai adaugă ${pl(left, 'poză', 'poze')}.`, `Adaugă ${pl(left, 'poză', 'poze')}`, `Restrânge la ${pl(P, 'poză', 'poze')}`, 'Lasă locurile goale');
+    if (r === 'a') $('fImg').click();
+    if (r === 'b'){ state.frames = need; applyTpl(tp[0], tp[1], true); }
   }
 }
 
@@ -1077,9 +1079,9 @@ function designCells(D, frames){
 const capacity = (kind, i, frames) => kind === 'col' ? collageRects(COLLAGES[i], frames, state.gap ?? 30).length : designCells(DES(i), frames);
 function framesFor(kind, i, photos){ for (let f = 1; f <= MAXF; f++) if (capacity(kind, i, f) >= photos) return f; return MAXF; }
 const applyTpl = (kind, i, trim) => kind === 'col' ? collage(i, false, trim) : design(i, trim);
-function ask(title, msg, a, b){           // two-choice question; resolves 'a', 'b' or null when dismissed
+function ask(title, msg, a, b, c){        // two-choice question; resolves 'a', 'b' or null when dismissed (c = label of the dismiss button)
   return new Promise(res => {
-    const d = $('dlgAsk'); let r = null;
+    const d = $('dlgAsk'); let r = null; $('askC').textContent = c || 'Renunță';
     $('askT').textContent = title; $('askM').textContent = msg; $('askA').textContent = a || ''; $('askA').style.display = a ? '' : 'none'; $('askB').textContent = b;
     $('askA').onclick = () => { r = 'a'; d.close(); }; $('askB').onclick = () => { r = 'b'; d.close(); };
     d.onclose = () => res(r); d.showModal();
@@ -1089,8 +1091,8 @@ async function chooseTemplate(kind, i){
   const P = photoCount(), f = state.frames, cap = capacity(kind, i, f);
   if (P > cap){
     const need = framesFor(kind, i, P), room = capacity(kind, i, need), grow = need > f && room > cap;
-    const r = await ask('Prea multe poze pentru acest șablon', `Ai ${pl(P, 'poză', 'poze')}, iar șablonul are ${pl(cap, 'loc', 'locuri')} pe ${pl(f, 'cadru', 'cadre')}.` + (grow && room < P ? ` Pe ${need} cadre încap ${room}.` : '') + (grow ? '' : ' Nu se poate extinde mai mult.'),
-      grow ? `Extinde la ${need} cadre` : null, `Scoate ${pl(P - cap, 'poză', 'poze')}`);
+    const r = await ask('Prea multe poze pentru acest șablon', `Ai ${pl(P, 'poză', 'poze')}, iar șablonul are loc pentru ${cap} pe ${pl(f, 'cadru', 'cadre')}. Vrei să reduci numărul de poze?` + (grow && room < P ? ` Chiar și pe ${need} cadre încap doar ${room}.` : '') + (grow ? '' : ' Șablonul nu se poate extinde mai mult.'),
+      grow ? `Nu, extinde la ${need} cadre` : null, `Da, scoate ultimele ${P - cap}`);
     if (!r) return;
     if (r === 'a') state.frames = need;
     const lost = P - (r === 'a' ? room : cap);
@@ -1099,9 +1101,10 @@ async function chooseTemplate(kind, i){
     return;
   }
   if (P > 0 && P < cap){
-    const r = await ask('Mai puține poze decât locuri', `Șablonul are ${pl(cap, 'loc', 'locuri')} pe ${pl(f, 'cadru', 'cadre')}, iar tu ai ${pl(P, 'poză', 'poze')}.`, `Restrânge la ${pl(P, 'poză', 'poze')}`, 'Păstrează locurile goale');
-    if (!r) return;
-    if (r === 'a'){ state.frames = framesFor(kind, i, P); return applyTpl(kind, i, true); }
+    const r = await ask('Nu sunt destule poze pentru șablon', `Șablonul are ${pl(cap, 'loc', 'locuri')} pe ${pl(f, 'cadru', 'cadre')}, iar tu ai ${pl(P, 'poză', 'poze')}. Ca să fie complet, mai adaugă ${pl(cap - P, 'poză', 'poze')}.`, `Adaugă ${pl(cap - P, 'poză', 'poze')}`, `Restrânge la ${pl(P, 'poză', 'poze')}`, 'Lasă locurile goale');
+    if (r === 'b'){ state.frames = framesFor(kind, i, P); return applyTpl(kind, i, true); }
+    applyTpl(kind, i); if (r === 'a') $('fImg').click();
+    return;
   }
   applyTpl(kind, i);
 }
