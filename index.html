@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 32;                                        // bumped by publish.sh
+const APP_VERSION = 33;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -648,6 +648,11 @@ function handlesOf(e){
   hs.push({rot:true, s:w2s(...local2world(e, 0, -e.h / 2 - 30 / view.z))});
   return hs;
 }
+function plusBtn(){                        // the round + after the last frame: [x, y, radius] on screen, or null when no more frames fit
+  if (state.frames >= MAXF) return null;
+  const [x, y] = w2s(W(), H() / 2); return [x + 22, y, 15];
+}
+async function addFrame(){ await setFrames(state.frames + 1); sc.scrollLeft = sc.scrollWidth; render(); }   // and show the new frame
 function paint(){
   raf = 0;
   const dpr = window.devicePixelRatio || 1, z = view.z, w = W(), h = H();
@@ -665,6 +670,11 @@ function paint(){
     if (i < state.frames){ ctx.fillStyle = '#7d838c'; ctx.fillText(String(i + 1), tx + (i + .5) * FW * z, ty - 10); }
   }
   ctx.setLineDash([]);
+  const pb = plusBtn();
+  if (pb){
+    ctx.beginPath(); ctx.arc(pb[0], pb[1], pb[2], 0, Math.PI * 2); ctx.fillStyle = '#ff8552'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(pb[0] - 6, pb[1]); ctx.lineTo(pb[0] + 6, pb[1]); ctx.moveTo(pb[0], pb[1] - 6); ctx.lineTo(pb[0], pb[1] + 6); ctx.stroke(); ctx.lineCap = 'butt';
+  }
   // snap guides
   if (drag && drag.guides){
     ctx.strokeStyle = GUIDE; ctx.lineWidth = 1;
@@ -758,6 +768,7 @@ sc.addEventListener('pointerdown', ev => {
   if (mx > sc.clientWidth || my > sc.clientHeight) return;      // scrollbar
   const [x, y] = s2w(mx, my);
   if (swapFrom){ ev.preventDefault(); tap = null; return swapPick(hitTest(x, y)); }
+  const pb = plusBtn(); if (pb && Math.hypot(mx - pb[0], my - pb[1]) <= pb[2] + (ev.pointerType === 'touch' ? 10 : 4)){ ev.preventDefault(); tap = null; return addFrame(); }
   const hd = hitHandle(mx, my, ev.pointerType === 'touch' ? 18 : 10);
   if (hd){
     const e = getSel();
@@ -779,7 +790,9 @@ sc.addEventListener('pointermove', ev => {
   const [mx, my] = evPos(ev), [x, y] = s2w(mx, my);
   if (!drag){
     const hd = hitHandle(mx, my, 10);
-    const over = hitTest(x, y);
+    const over = hitTest(x, y), pb = plusBtn();
+    if (pb && Math.hypot(mx - pb[0], my - pb[1]) <= pb[2] + 4){ sc.style.cursor = 'pointer'; sc.title = 'Adaugă un cadru'; return; }
+    sc.title = '';
     sc.style.cursor = hd ? (hd.rot ? 'grab' : 'nwse-resize') : over ? (cropping() === over ? 'grab' : 'move') : 'default';
     return;
   }
@@ -1509,6 +1522,17 @@ async function nativeShare(items, title){            // phone app: hand the file
   }
   await Share.share({title, files});
 }
+/* Android: write the pictures straight into the phone's Pictures folder, where the gallery shows them. This needs no extra
+   permission on Android 11 and newer; on older phones the write is refused and the caller falls back to the share sheet. */
+const ANDROID = NATIVE && Capacitor.getPlatform && Capacitor.getPlatform() === 'android';
+async function saveToGallery(items){
+  const {Filesystem} = Capacitor.Plugins, d = new Date(), z = n => String(n).padStart(2, '0');
+  const stamp = d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds());
+  for (const it of items){
+    const data = (await blob2url(it.blob)).split(',')[1];
+    await Filesystem.writeFile({path:'Pictures/Carusel Studio/' + it.name.replace(/^carusel/, 'carusel-' + stamp), data, directory:'EXTERNAL_STORAGE', recursive:true});
+  }
+}
 async function download(){
   const type = $('dlType').value, q = parseFloat($('dlQ').value), k = parseInt($('dlK').value), zip = $('dlZip').value === '1', ext = type === 'image/png' ? 'png' : 'jpg';
   const btn = $('dlGo'); btn.disabled = true;
@@ -1518,7 +1542,12 @@ async function download(){
       btn.textContent = `Se generează ${i + 1}/${state.frames}…`;
       items.push({name:`carusel-${String(i + 1).padStart(2, '0')}.${ext}`, blob:await renderFrame(i, k, type, q)});
     }
-    if (NATIVE){ $('dlgDl').close(); await nativeShare(items, 'Carusel'); }
+    if (ANDROID){
+      $('dlgDl').close();
+      try{ await saveToGallery(items); toast('Salvat în galerie, în albumul „Carusel Studio” — ' + pl(items.length, 'imagine', 'imagini')); }
+      catch(e){ await nativeShare(items, 'Carusel'); }                 // older Android: let the system offer "save" and the other apps
+    }
+    else if (NATIVE){ $('dlgDl').close(); await nativeShare(items, 'Carusel'); }
     else if (zip){ const files = []; for (const it of items) files.push({name:it.name, data:new Uint8Array(await it.blob.arrayBuffer())}); saveBlob(makeZip(files), 'carusel.zip'); }
     else for (const it of items){ saveBlob(it.blob, it.name); await new Promise(r => setTimeout(r, 350)); }
     $('dlgDl').close(); if (!NATIVE) toast('Gata — ' + state.frames + ' cadre exportate');
