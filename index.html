@@ -217,7 +217,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 20;                                        // bumped by publish.sh
+const APP_VERSION = 21;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -236,6 +236,12 @@ let state = fresh();
 let sel = null;
 const images = new Map();           // id -> {blob, full, prev, w, h}
 const view = {z:0.4, offX:PAD, offY:PAD};
+/* Reframing: while cropId is the selected photo, dragging slides the picture inside its frame instead of moving the frame.
+   A photo in a template cell starts in this mode when it is clicked; Enter (or the "Gata" button) ends it, Enter again or a double click starts it. */
+let cropId = null;
+const cropping = () => { const e = cropId && cropId === sel ? getSel() : null; return e && e.type === 'image' && e.img ? e : null; };
+const autoCrop = e => { cropId = e && e.type === 'image' && e.img && tplActive() ? e.id : null; };
+function setCrop(on){ const e = getSel(); cropId = on && e && e.type === 'image' && e.img ? e.id : null; refreshPanel(); render(); }
 let drag = null, tap = null, lastTap = 0, pinch = null, hist = [], hi = -1;
 let proj = {id:null, name:''};                     // library entry the current work belongs to, if it was saved
 
@@ -627,21 +633,30 @@ function paint(){
   // selection
   const e = getSel();
   if (e){
-    const c = [[-1,-1],[1,-1],[1,1],[-1,1]].map(([a, b]) => w2s(...local2world(e, a * e.w / 2, b * e.h / 2)));
-    ctx.strokeStyle = '#ff8552'; ctx.lineWidth = 1.5; ctx.beginPath(); c.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke();
-    const hs = handlesOf(e), rh = hs[hs.length - 1], top = w2s(...local2world(e, 0, -e.h / 2));
-    ctx.beginPath(); ctx.moveTo(top[0], top[1]); ctx.lineTo(rh.s[0], rh.s[1]); ctx.stroke();
+    const c = [[-1,-1],[1,-1],[1,1],[-1,1]].map(([a, b]) => w2s(...local2world(e, a * e.w / 2, b * e.h / 2))), crop = cropping();
+    if (crop && (e.frame || 'none') === 'none'){        // reframing: show faintly the part of the photo that falls outside the frame
+      const im = images.get(e.img), s = Math.max(e.w / im.w, e.h / im.h) * e.cz, fw = im.w * s, fh = im.h * s;
+      ctx.save(); ctx.beginPath(); ctx.rect(tx, ty, w * z, h * z); ctx.clip();
+      ctx.translate(tx, ty); ctx.scale(z, z); ctx.translate(e.x + e.w / 2, e.y + e.h / 2); ctx.rotate(e.rot * Math.PI / 180);
+      ctx.beginPath(); ctx.rect(-1e5, -1e5, 2e5, 2e5); ctx.rect(-e.w / 2, -e.h / 2, e.w, e.h); ctx.clip('evenodd');
+      if (e.flip) ctx.scale(-1, 1);
+      ctx.globalAlpha = .35; ctx.drawImage(im.prev, -e.w / 2 - (fw - e.w) * e.cx, -e.h / 2 - (fh - e.h) * e.cy, fw, fh);
+      ctx.restore();
+    }
+    ctx.strokeStyle = crop ? CROPC : '#ff8552'; ctx.lineWidth = crop ? 2.5 : 1.5; ctx.beginPath(); c.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke();
+    const hs = crop ? [] : handlesOf(e), rh = hs[hs.length - 1], top = w2s(...local2world(e, 0, -e.h / 2));
+    if (rh){ ctx.beginPath(); ctx.moveTo(top[0], top[1]); ctx.lineTo(rh.s[0], rh.s[1]); ctx.stroke(); }
     for (const hd of hs){
       ctx.beginPath(); ctx.arc(hd.s[0], hd.s[1], hd.rot ? 6 : 5, 0, Math.PI * 2);
       ctx.fillStyle = hd.rot ? '#ff8552' : '#fff'; ctx.fill(); ctx.stroke();
     }
     // size / position badge, in export pixels
     const b = aabb(e), act = drag && drag.moved ? drag.mode : '';
-    const t = act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px';
+    const t = crop ? (COARSE ? 'Reîncadrare: trage poza' : 'Reîncadrare: trage poza · Enter = gata') : act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px';
     ctx.font = '600 11px -apple-system,"Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const bw = ctx.measureText(t).width + 14, vw = cv.width / dpr, vh = cv.height / dpr;
     const bx = clamp(w2s(b.cx, 0)[0], bw / 2 + 4, Math.max(bw / 2 + 4, vw - bw / 2 - 4)), by = clamp(w2s(0, b.y1)[1] + 20, 14, Math.max(14, vh - 14));
-    ctx.fillStyle = '#ff8552'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx - bw / 2, by - 10, bw, 20, 5); else ctx.rect(bx - bw / 2, by - 10, bw, 20); ctx.fill();
+    ctx.fillStyle = crop ? CROPC : '#ff8552'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx - bw / 2, by - 10, bw, 20, 5); else ctx.rect(bx - bw / 2, by - 10, bw, 20); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.fillText(t, bx, by + .5);
   }
 }
@@ -657,12 +672,12 @@ function hitTest(x, y){
   return null;
 }
 function hitHandle(mx, my, rad){
-  const e = getSel(); if (!e) return null;
+  const e = getSel(); if (!e || cropping()) return null;
   const hs = handlesOf(e);
   for (let i = hs.length - 1; i >= 0; i--) if (Math.hypot(hs[i].s[0] - mx, hs[i].s[1] - my) <= rad) return hs[i];
   return null;
 }
-const GUIDE = '#ff2bd6';
+const GUIDE = '#ff2bd6', CROPC = '#2f8fff';
 function aabb(e){                         // upright box around an element, whatever its rotation
   const a = e.rot * Math.PI / 180, co = Math.abs(Math.cos(a)), si = Math.abs(Math.sin(a));
   const hw = (e.w * co + e.h * si) / 2, hh = (e.w * si + e.h * co) / 2, cx = e.x + e.w / 2, cy = e.y + e.h / 2;
@@ -710,8 +725,8 @@ sc.addEventListener('pointerdown', ev => {
     if (ev.pointerType === 'touch' && (!e || e.id !== sel)){ tap = {x:ev.clientX, y:ev.clientY, id:e ? e.id : null}; return; }   // touch: tap selects, dragging pans the canvas
     if (e){
       const wasSel = sel === e.id;
-      if (!wasSel){ sel = e.id; refreshPanel(); }
-      drag = {wasSel, mode: ev.altKey && e.type === 'image' && e.img ? 'crop' : 'move', sx:x, sy:y, id:e.id, orig:JSON.parse(JSON.stringify(e)), moved:false};
+      if (!wasSel){ sel = e.id; autoCrop(e); refreshPanel(); }
+      drag = {wasSel, mode: (ev.altKey || cropId === e.id) && e.type === 'image' && e.img ? 'crop' : 'move', sx:x, sy:y, id:e.id, orig:JSON.parse(JSON.stringify(e)), moved:false};
     } else if (sel){ sel = null; refreshPanel(); }
   }
   if (drag){ sc.setPointerCapture(ev.pointerId); ev.preventDefault(); }
@@ -722,7 +737,8 @@ sc.addEventListener('pointermove', ev => {
   const [mx, my] = evPos(ev), [x, y] = s2w(mx, my);
   if (!drag){
     const hd = hitHandle(mx, my, 10);
-    sc.style.cursor = hd ? (hd.rot ? 'grab' : 'nwse-resize') : hitTest(x, y) ? 'move' : 'default';
+    const over = hitTest(x, y);
+    sc.style.cursor = hd ? (hd.rot ? 'grab' : 'nwse-resize') : over ? (cropping() === over ? 'grab' : 'move') : 'default';
     return;
   }
   const e = getSel(), o = drag.orig; if (!e) return;
@@ -791,7 +807,7 @@ sc.addEventListener('pointerup', ev => {
   if (tap){
     if (Math.hypot(ev.clientX - tap.x, ev.clientY - tap.y) < 10){
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
-      sel = tap.id; refreshPanel(); render();
+      sel = tap.id; autoCrop(getSel()); refreshPanel(); render();
       if (tap.id == null){ const now = Date.now(); if (now - lastTap < 350) fit(); lastTap = now; }
     }
     tap = null;
@@ -819,10 +835,16 @@ sc.addEventListener('touchmove', ev => {
 }, {passive:false});
 sc.addEventListener('touchend', ev => { if (ev.touches.length < 2) pinch = null; });
 sc.addEventListener('dblclick', ev => {
-  const e = getSel(); if (e && e.type === 'text'){ const ta = panel.querySelector('textarea'); if (ta){ ta.focus(); ta.select(); } }
+  const e = getSel(); if (e && e.type === 'image' && e.img && !cropping()) return setCrop(true);
+  if (e && e.type === 'text'){ const ta = panel.querySelector('textarea'); if (ta){ ta.focus(); ta.select(); } }
 });
 sc.addEventListener('scroll', render);
 sc.addEventListener('wheel', ev => {
+  const cr = cropping();
+  if (cr && !ev.ctrlKey && !ev.metaKey && hitTest(...s2w(...evPos(ev))) === cr){     // reframing: the wheel zooms the photo inside its frame
+    ev.preventDefault(); cr.cz = clamp(cr.cz * Math.exp(-ev.deltaY * 0.003), 1, 4); render();
+    clearTimeout(sc.czT); sc.czT = setTimeout(() => { commit(); refreshPanel(); }, 350); return;
+  }
   if (ev.ctrlKey || ev.metaKey){ ev.preventDefault(); const [mx, my] = evPos(ev); setZoom(view.z * Math.exp(-ev.deltaY * 0.01), mx, my); }
   else if (!ev.shiftKey && Math.abs(ev.deltaX) < 1 && sc.scrollHeight <= sc.clientHeight + 1){ ev.preventDefault(); sc.scrollLeft += ev.deltaY; }
 }, {passive:false});
@@ -850,6 +872,14 @@ window.addEventListener('keydown', ev => {
   if (mod && k === '-'){ ev.preventDefault(); setZoom(view.z / 1.25); return; }
   if (mod && k === '0'){ ev.preventDefault(); fit(); return; }
   if (!e) return;
+  const cr = cropping();
+  if (k === 'enter' && e.type === 'image' && e.img){ ev.preventDefault(); return setCrop(!cr); }
+  if (k === 'escape' && cr){ ev.preventDefault(); return setCrop(false); }
+  if (cr && k.startsWith('arrow')){                     // nudge the photo inside its frame
+    ev.preventDefault(); const d = ev.shiftKey ? .05 : .01;
+    if (k === 'arrowleft') cr.cx = clamp(cr.cx + d, 0, 1); if (k === 'arrowright') cr.cx = clamp(cr.cx - d, 0, 1); if (k === 'arrowup') cr.cy = clamp(cr.cy + d, 0, 1); if (k === 'arrowdown') cr.cy = clamp(cr.cy - d, 0, 1);
+    commit(); render(); return;
+  }
   if (k === 'delete' || k === 'backspace'){ ev.preventDefault(); act('del'); }
   else if (mod && k === 'd'){ ev.preventDefault(); act('dup'); }
   else if (k === ']'){ act('front'); } else if (k === '['){ act('back'); }
@@ -881,6 +911,8 @@ function act(a){
   if (a === 'new') return leave(newProject);
   if (!e) return;
   if (a === 'pick') return pickImage(e.id);
+  if (a === 'crop') return setCrop(true);
+  if (a === 'cropdone') return setCrop(false);
   if (a.startsWith('fx:')) e.fx = Object.assign({}, FX0, FX_PRESETS[+a.slice(3)][1]);
   if (a === 'del'){ state.els.splice(i, 1); sel = null; }
   if (a === 'dup'){ const c = JSON.parse(JSON.stringify(e)); c.id = uid(); c.x += 60; c.y += 60; state.els.push(c); sel = c.id; }
@@ -1312,7 +1344,8 @@ function refreshPanel(){
     if (e.type === 'image'){
       const fx = Object.assign({}, FX0, e.fx);
       const im = e.img && images.get(e.img), up = im ? Math.max(e.w / im.w, e.h / im.h) * e.cz : 0;
-      h += `<h3>Imagine</h3><div class="tip" style="margin:0 0 8px">Pe pânză: <b>${Math.round(e.w)} × ${Math.round(e.h)} px</b>${im ? `<br>Poza originală: ${im.w} × ${im.h} px${up > 1.25 ? '<br>⚠︎ Poza e mărită peste rezoluția ei și poate ieși neclară.' : ''}` : ''}</div><div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
+      h += `<h3>Imagine</h3><div class="tip" style="margin:0 0 8px">Pe pânză: <b>${Math.round(e.w)} × ${Math.round(e.h)} px</b>${im ? `<br>Poza originală: ${im.w} × ${im.h} px${up > 1.25 ? '<br>⚠︎ Poza e mărită peste rezoluția ei și poate ieși neclară.' : ''}` : ''}</div>
+      ${e.img ? (cropping() ? `<div class="row"><button class="btn primary" style="flex:1" data-act="cropdone">✓ Gata cu reîncadrarea</button></div><div class="tip" style="margin:0 0 8px">Trage poza ca să alegi ce se vede în chenar${COARSE ? '' : '; rotița mouse-ului mărește'}. După „Gata”${COARSE ? '' : ' (sau <kbd>Enter</kbd>)'} poți muta și redimensiona chenarul.</div>` : `<div class="row"><button class="btn" style="flex:1" data-act="crop">⛶ Reîncadrează poza</button></div>`) : ''}<div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
       <h3>Decupaj</h3>${rng('Zoom', 'cz', 1, 4, 0.01, e.cz)}${rng('Orizontal', 'cx', 0, 1, 0.005, e.cx)}${rng('Vertical', 'cy', 0, 1, 0.005, e.cy)}
       <h3>Filtru</h3><div class="seg chips">${FX_PRESETS.map(([n, v], i) => `<button class="btn ${JSON.stringify(Object.assign({}, FX0, v)) === JSON.stringify(fx) ? 'on' : ''}" data-act="fx:${i}">${n}</button>`).join('')}</div>
       ${rng('Luminozitate', 'br', -100, 100, 1, fx.br, 'fx')}${rng('Contrast', 'ct', -100, 100, 1, fx.ct, 'fx')}${rng('Saturație', 'sat', -100, 100, 1, fx.sat, 'fx')}${rng('Căldură', 'warm', -100, 100, 1, fx.warm, 'fx')}${rng('Estompare', 'fade', 0, 100, 1, fx.fade, 'fx')}${rng('Neclaritate', 'blur', 0, 100, 1, fx.blur, 'fx')}
