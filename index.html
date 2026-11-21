@@ -206,7 +206,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 14;                                        // bumped by publish.sh
+const APP_VERSION = 15;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -415,7 +415,7 @@ function shapeIcon(kind){
 /* ---------- photo filters ----------
    Applied to a copy of the photo and cached per element: small while a slider is moving, sharper once it is released,
    and from the full-size photo only for the final export. */
-const FX0 = {br:0, ct:0, sat:0, warm:0, fade:0, sep:0};
+const FX0 = {br:0, ct:0, sat:0, warm:0, fade:0, sep:0, blur:0};
 const FX_PRESETS = [['Normal', {}], ['Alb-negru', {sat:-100, ct:12}], ['Sepia', {sep:80, ct:5, fade:10}], ['Cald', {warm:45, sat:10}], ['Rece', {warm:-45, sat:5}], ['Viu', {sat:45, ct:18}], ['Estompat', {fade:55, sat:-20, ct:-10}], ['Dramatic', {ct:45, sat:-25, br:-8}], ['Film', {fade:30, warm:20, ct:10, sat:-10}]];
 const hasFx = e => !!e.fx && Object.keys(FX0).some(k => e.fx[k]);
 const fxCache = new Map(); let fxLow = false;
@@ -434,6 +434,25 @@ function applyFx(d, f){
     d[i] = R[r]; d[i + 1] = G[g]; d[i + 2] = B[b];
   }
 }
+function blurCanvas(cv, r){                // soft blur by shrinking and growing back in steps; works in every browser, unlike ctx.filter
+  const f = Math.max(1, r / 1.5); if (f <= 1) return;
+  let w = Math.max(2, Math.round(cv.width / f)), h = Math.max(2, Math.round(cv.height / f));
+  let cur = document.createElement('canvas'); cur.width = w; cur.height = h;
+  let x = cur.getContext('2d'); x.imageSmoothingQuality = 'high';
+  let src = cv, sw = cv.width, sh = cv.height;
+  while (sw > w * 2){                      // halve repeatedly so every source pixel counts
+    const t = document.createElement('canvas'); t.width = Math.max(w, sw >> 1); t.height = Math.max(h, sh >> 1);
+    const tx = t.getContext('2d'); tx.imageSmoothingQuality = 'high'; tx.drawImage(src, 0, 0, sw, sh, 0, 0, t.width, t.height);
+    src = t; sw = t.width; sh = t.height;
+  }
+  x.drawImage(src, 0, 0, sw, sh, 0, 0, w, h);
+  while (w < cv.width){
+    const nw = Math.min(cv.width, w * 2), nh = Math.min(cv.height, Math.round(h * nw / w)), t = nw === cv.width ? cv : document.createElement('canvas');
+    if (t !== cv){ t.width = nw; t.height = nh; }
+    const tx = t.getContext('2d'); tx.imageSmoothingQuality = 'high'; tx.drawImage(cur, 0, 0, w, h, 0, 0, t === cv ? cv.width : nw, t === cv ? cv.height : nh);
+    cur = t; w = nw; h = nh;
+  }
+}
 function fxSource(e, im, full){
   if (!hasFx(e)) return full ? im.full : im.prev;
   const res = full ? 'F' : fxLow ? 'L' : 'P', key = e.img + JSON.stringify(e.fx), hit = fxCache.get(e.id + res);
@@ -443,6 +462,7 @@ function fxSource(e, im, full){
   cv.width = Math.max(1, Math.round(bw * k)); cv.height = Math.max(1, Math.round(bh * k));
   const x = cv.getContext('2d', {willReadFrequently:true}); x.drawImage(base, 0, 0, cv.width, cv.height);
   const d = x.getImageData(0, 0, cv.width, cv.height); applyFx(d.data, Object.assign({}, FX0, e.fx)); x.putImageData(d, 0, 0);
+  if (e.fx.blur) blurCanvas(cv, e.fx.blur / 100 * .05 * Math.max(cv.width, cv.height));
   fxCache.set(e.id + res, {key, cv}); return cv;
 }
 function dropFullFx(){ for (const k of [...fxCache.keys()]) if (k.endsWith('F')) fxCache.delete(k); }
@@ -861,7 +881,7 @@ function act(a){
 function template(name){
   const imgs = state.els.filter(e => e.type === 'image' && e.img);
   if (!imgs.length){ toast('Adaugă mai întâi câteva imagini'); return; }
-  state.els = state.els.filter(e => !isSlot(e) && !e.d); state.tpl = null; state.des = null; if (!getSel()) sel = null;
+  state.els = state.els.filter(e => !isSlot(e) && !e.d); state.els.forEach(e => { if (e.type === 'image') tplFx(e); }); state.tpl = null; state.des = null; if (!getSel()) sel = null;
   const h = H(), ar = e => { const im = images.get(e.img); return im.w / im.h; };
   imgs.forEach(e => Object.assign(e, {rot:0, cx:.5, cy:.5, cz:1}));
   const strip = (list, y, rh, gap) => {            // natural-width row; returns total width
@@ -947,7 +967,7 @@ function collage(i, live, trim){
   const T = COLLAGES[i], rad = state.rad ?? 0, rects = collageRects(T, state.frames, state.gap ?? 30);
   rects.sort((p, q) => byPos(p[0] + p[2] / 2, p[1], q[0] + q[2] / 2, q[1]));
   const imgs = photosInOrder(), rest = state.els.filter(e => e.type !== 'image' && !e.d);
-  if (state.des != null){ imgs.forEach(e => Object.assign(e, {frame:'none', mask:'rect', shadow:false, border:0})); state.des = null; }
+  if (state.des != null){ imgs.forEach(e => tplFx(Object.assign(e, {frame:'none', mask:'rect', shadow:false, border:0}))); state.des = null; }
   let cells = rects.map((r, k) => Object.assign(imgs[k] || newImg(null, 0, 0, 1, 1), {x:r[0], y:r[1], w:r[2], h:r[3], rot:0, radius:rad}));
   if (trim) cells = cells.filter(e => e.img);
   state.els = [...cells, ...(live ? imgs.slice(rects.length) : []), ...rest];      // photos first, text stays on top
@@ -1086,7 +1106,22 @@ const DESIGNS = [
   {n:'Peste margine', bg:['#e8e4dc'], p:2, it:[
     {s:'rect', x:.62, y:.1, w:1, h:.68, c:'#111111', rad:24}, {i:1, x:.5, y:.16, w:1, h:.68, rad:24},
     {t:'{n}', x:.25, y:.5, z:150, st:'b', c:'#111111'}, {t:'→', x:1.75, y:.5, z:130, c:'#111111'}]},
+  // editorial / wedding album: a blurred photo as backdrop with overlapping prints, full-bleed pages, small inset prints
+  {n:'Album · colaj', bg:['#ffffff'], p:2, it:[
+    {i:1, x:0, y:.045, w:.935, h:.91, fx:{blur:70}},
+    {i:1, x:.04, y:.23, w:.41, h:.46}, {i:1, x:.41, y:.145, w:.385, h:.365, fx:{sat:-100, ct:12}}, {i:1, x:.4, y:.46, w:.415, h:.47},
+    {i:1, x:1, y:0, w:1, h:1}]},
+  {n:'Album · trepte', bg:['#ffffff'], p:1, it:[
+    {i:1, x:0, y:.035, w:.95, h:.935, fx:{blur:70}},
+    {i:1, x:.065, y:.115, w:.41, h:.46}, {i:1, x:.27, y:.515, w:.29, h:.305, fx:{sat:-100, ct:12}}, {i:1, x:.545, y:.55, w:.31, h:.35}]},
+  {n:'Album · editorial', bg:['#ffffff'], p:2, it:[
+    {i:1, x:.07, y:.09, w:.86, h:.82}, {i:1, x:1, y:0, w:1, h:1, fx:{sat:-100, ct:12}},
+    {i:1, x:.85, y:.43, w:.23, h:.15, b:12, bc:'#ffffff', sh:1}]},
 ];
+function tplFx(e, fx){                     // a filter the template asks for (blur, black and white); removed again when the photo moves to a plain cell
+  if (fx){ e.fx = Object.assign({}, fx); e.dfx = 1; } else if (e.dfx){ delete e.fx; delete e.dfx; }
+  return e;
+}
 function design(i, trim){
   const D = DESIGNS[i], w = W(), h = H(), out = [], imgs = photosInOrder();
   const own = state.els.filter(e => e.type !== 'image' && !e.d);     // the user's own text and shapes stay
@@ -1101,7 +1136,7 @@ function design(i, trim){
     }
     const box = {x:x0, y:it.y * h, w:it.w === 'all' ? w : it.w * FW, h:it.h * h, rot:it.r || 0};
     if (it.s) out.push(Object.assign({id:uid(), type:'shape', kind:it.s, opacity:it.o == null ? 1 : it.o, fill:it.c, nofill:false, stroke:'#111111', sw:0, radius:it.rad || 0, shadow:false, d:1, dk:key}, box));
-    else if (imgs[k] || !trim) out.push(Object.assign(imgs[k++] || newImg(null, 0, 0, 1, 1), box, {frame:it.f || 'none', mask:it.m || 'rect', shadow:!!it.sh, radius:it.rad || 0, border:it.b || 0, borderColor:it.bc || '#ffffff'}));
+    else if (imgs[k] || !trim) out.push(tplFx(Object.assign(imgs[k++] || newImg(null, 0, 0, 1, 1), box, {frame:it.f || 'none', mask:it.m || 'rect', shadow:!!it.sh, radius:it.rad || 0, border:it.b || 0, borderColor:it.bc || '#ffffff'}), it.fx));
   };
   const first = D.first || [];
   first.forEach((it, n) => { if (it.i) put(it, 0, 'f' + n); });        // a full-width photo goes underneath everything
@@ -1117,7 +1152,7 @@ function dthumb(D){
   const one = (it, t) => {
     const x = (t * D.p + it.x) * 32, y = it.y * 40; if (x > 92) return;
     if (it.t != null){ const tw = Math.min(26, Math.max(6, it.t.length * it.z / 60)); s += `<rect x="${(x - tw / 2).toFixed(1)}" y="${(y - 1).toFixed(1)}" width="${tw.toFixed(1)}" height="2" rx="1" fill="${it.c || (it.st === 'out' ? '#ffffff' : '#111111')}"/>`; return; }
-    const w = it.w === 'all' ? 96 : it.w * 32, h = it.h * 40, cx = x + w / 2, cy = y + h / 2, fill = it.s ? it.c : '#9aa0a8', rot = it.r ? ` transform="rotate(${it.r} ${cx.toFixed(1)} ${cy.toFixed(1)})"` : '', op = it.o ? ` opacity="${it.o}"` : '';
+    const w = it.w === 'all' ? 96 : it.w * 32, h = it.h * 40, cx = x + w / 2, cy = y + h / 2, fill = it.s ? it.c : it.fx && it.fx.blur ? '#c9ced6' : it.fx ? '#5d636b' : '#9aa0a8', rot = it.r ? ` transform="rotate(${it.r} ${cx.toFixed(1)} ${cy.toFixed(1)})"` : '', op = it.o ? ` opacity="${it.o}"` : '';
     s += (it.m === 'ellipse' || it.s === 'ellipse') ? `<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(w / 2).toFixed(1)}" ry="${(h / 2).toFixed(1)}" fill="${fill}"${op}/>`
       : `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(.6, h).toFixed(1)}" rx="${it.m === 'arch' || it.s === 'arch' ? Math.min(w, h) / 2 : it.rad > 100 ? Math.min(w, h) / 2 : 1}" fill="${fill}"${op}${rot}${it.f === 'polaroid' ? ' stroke="#ffffff" stroke-width="1.6"' : it.f === 'film' ? ' stroke="#000000" stroke-width="2"' : ''}/>`;
   };
@@ -1180,7 +1215,7 @@ function refreshPanel(){
       h += `<h3>Imagine</h3><div class="tip" style="margin:0 0 8px">Pe pânză: <b>${Math.round(e.w)} × ${Math.round(e.h)} px</b>${im ? `<br>Poza originală: ${im.w} × ${im.h} px${up > 1.25 ? '<br>⚠︎ Poza e mărită peste rezoluția ei și poate ieși neclară.' : ''}` : ''}</div><div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
       <h3>Decupaj</h3>${rng('Zoom', 'cz', 1, 4, 0.01, e.cz)}${rng('Orizontal', 'cx', 0, 1, 0.005, e.cx)}${rng('Vertical', 'cy', 0, 1, 0.005, e.cy)}
       <h3>Filtru</h3><div class="seg chips">${FX_PRESETS.map(([n, v], i) => `<button class="btn ${JSON.stringify(Object.assign({}, FX0, v)) === JSON.stringify(fx) ? 'on' : ''}" data-act="fx:${i}">${n}</button>`).join('')}</div>
-      ${rng('Luminozitate', 'br', -100, 100, 1, fx.br, 'fx')}${rng('Contrast', 'ct', -100, 100, 1, fx.ct, 'fx')}${rng('Saturație', 'sat', -100, 100, 1, fx.sat, 'fx')}${rng('Căldură', 'warm', -100, 100, 1, fx.warm, 'fx')}${rng('Estompare', 'fade', 0, 100, 1, fx.fade, 'fx')}
+      ${rng('Luminozitate', 'br', -100, 100, 1, fx.br, 'fx')}${rng('Contrast', 'ct', -100, 100, 1, fx.ct, 'fx')}${rng('Saturație', 'sat', -100, 100, 1, fx.sat, 'fx')}${rng('Căldură', 'warm', -100, 100, 1, fx.warm, 'fx')}${rng('Estompare', 'fade', 0, 100, 1, fx.fade, 'fx')}${rng('Neclaritate', 'blur', 0, 100, 1, fx.blur, 'fx')}
       <h3>Formă și ramă</h3>
       <div class="row"><label>Formă</label><select data-o="el" data-k="mask">${MASKS.map(([k, n]) => `<option value="${k}" ${k === (e.mask || 'rect') ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div class="row"><label>Ramă</label><select data-o="el" data-k="frame">${[['none','Fără'],['polaroid','Polaroid'],['film','Film']].map(([k, n]) => `<option value="${k}" ${k === (e.frame || 'none') ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
@@ -1368,7 +1403,7 @@ async function libDelete(id){
 }
 function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); }
 function clearTemplate(){                             // "no template": keep the photos and the user's own elements, drop cells and decorations
-  state.els = state.els.filter(e => !isSlot(e) && !e.d); state.des = null; state.tpl = null; state.blank = true;
+  state.els = state.els.filter(e => !isSlot(e) && !e.d); state.els.forEach(e => { if (e.type === 'image') tplFx(e); }); state.des = null; state.tpl = null; state.blank = true;
   state.bg = Object.assign({}, state.bg, {type:'solid', c1:'#ffffff'}); if (!getSel()) sel = null;
   commit(); fit(); refreshPanel();
 }
