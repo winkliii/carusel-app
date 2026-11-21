@@ -206,8 +206,9 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 12;                                        // bumped by publish.sh
+const APP_VERSION = 13;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
+const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
 const APPS = [
@@ -840,6 +841,7 @@ function act(a){
   if (a.startsWith('des:')) return chooseTemplate('des', +a.slice(4));
   if (a.startsWith('fn:')) return setFrames(+a.slice(3));
   if (a === 'getapp') return $('dlgApp').showModal();
+  if (a === 'update') return checkUpdate(true);
   if (a === 'feedback') return void window.open(FEEDBACK_URL, '_blank');
   if (a === 'save') return quickSave();
   if (a === 'lib') return showLib();
@@ -1137,6 +1139,7 @@ function refreshPanel(){
     <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
     ${FEEDBACK_URL ? '<h3>Părerea ta</h3><div class="row"><button class="btn" style="flex:1" data-act="feedback">Trimite feedback…</button></div>' : ''}
     ${WEB ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="getapp">⤓ Descarcă aplicația…</button></div>' : ''}
+    ${NATIVE || DESKTOP ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="update">⟳ Caută actualizări</button></div>' : ''}
     <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor și de celelalte elemente. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor și de celelalte elemente (ține <kbd>${KEY.mod}</kbd> ca să nu se lipească). <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
   } else {
     const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">Șterge</button></div>`;
@@ -1409,19 +1412,28 @@ $('appList').innerHTML = APPS.map(a => `<a class="btn ${a.os && a.os.test(naviga
 $('bPanel').onclick = () => { $('bPanel').classList.toggle('on', !document.body.classList.toggle('nopanel')); };
 $('hint').innerHTML = COARSE ? 'Apasă „＋” ca să adaugi imagini.<br>Liniile punctate arată unde se taie cadrele.' : 'Trage imagini aici sau apasă „＋ Imagini”.<br>Liniile punctate arată unde se taie cadrele caruselului.';
 if (NATIVE){ $('dlZip').closest('.row').style.display = 'none'; $('dlTitle').textContent = 'Salvează cadrele'; $('dlGo').textContent = DL_LABEL; }
-/* Phone apps update themselves: if the published version is newer, download it, keep it in local storage and restart into it.
-   mobile/loader.html decides at launch whether to run the stored copy or the one shipped inside the app. */
-async function checkUpdate(){
-  try{ localStorage.removeItem('cs_pending'); }catch(e){}       // we started fine, so this copy is good
-  if (!NATIVE) return;
+/* The installed apps update themselves: if the published version is newer, download it, keep it on the device and restart into it.
+   Runs at every start and from the "Caută actualizări" button (manual = true, which also reports what it found).
+   Phones keep the copy in local storage and mobile/loader.html picks it at launch; the desktop app hands it to desktop/main.js. */
+async function checkUpdate(manual){
+  if (!manual){
+    try{ localStorage.removeItem('cs_pending'); }catch(e){}     // we started fine, so this copy is good
+    if (DESKTOP) caruselDesktop.started();
+  }
+  if (!NATIVE && !DESKTOP) return;
+  if (checkUpdate.busy) return; checkUpdate.busy = true;
   try{
-    const r = await fetch(UPDATE_URL + 'version.json?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) return;
-    const v = (await r.json()).v; if (!(v > APP_VERSION)) return;
+    if (manual) toast('Se caută actualizări…');
+    const r = await fetch(UPDATE_URL + 'version.json?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) throw 0;
+    const v = (await r.json()).v;
+    if (!(v > APP_VERSION)){ if (manual) toast('Ai deja ultima versiune (' + APP_VERSION + ').'); return; }
     const html = await (await fetch(UPDATE_URL + 'index.html?t=' + Date.now(), {cache:'no-store'})).text();
-    if (!html.includes('const APP_VERSION = ' + v + ';') || !html.trimEnd().endsWith('</html>')) return;   // incomplete or mismatched download
-    localStorage.setItem('cs_html', html); localStorage.setItem('cs_v', String(v));
-    toast('Se actualizează la versiunea ' + v + '…'); await saveLocal(); setTimeout(() => location.reload(), 900);
-  }catch(e){}
+    if (!html.includes('const APP_VERSION = ' + v + ';') || !html.trimEnd().endsWith('</html>')) throw 0;   // incomplete or mismatched download
+    toast('Se actualizează la versiunea ' + v + '…'); await saveLocal();
+    if (DESKTOP){ await new Promise(r => setTimeout(r, 900)); await caruselDesktop.install(html); }
+    else { localStorage.setItem('cs_html', html); localStorage.setItem('cs_v', String(v)); setTimeout(() => location.reload(), 900); }
+  }catch(e){ if (manual) toast('Nu am putut verifica. Ai internet?'); }
+  finally{ checkUpdate.busy = false; }
 }
 (async () => { await loadLocal(); commit(); refreshPanel(); fit(); checkUpdate(); })();
 </script>

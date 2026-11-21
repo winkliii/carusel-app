@@ -1,0 +1,39 @@
+# Rebuilds the Mac and Windows downloads whenever a new version of the app is published.
+name: Desktop apps
+on:
+  push:
+    branches: [main]
+    paths: [index.html, 'desktop/**', .github/workflows/desktop.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: desktop
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build
+        run: |
+          cp index.html carusel-studio.html
+          bash desktop/build.sh
+      - name: Upload to the download page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          cp "Carusel Studio - Mac (Apple Silicon).zip" CaruselStudio-Mac-AppleSilicon.zip
+          cp "Carusel Studio - Mac (Intel).zip" CaruselStudio-Mac-Intel.zip
+          cp "Carusel Studio - Windows.zip" CaruselStudio-Windows.zip
+          for f in CaruselStudio-*.zip; do
+            for try in 1 2 3 4; do
+              gh release upload apps --repo "$GITHUB_REPOSITORY" --clobber "$f" && break
+              [ "$try" = 4 ] && exit 1
+              sleep 5
+            done
+          done

@@ -1,0 +1,5 @@
+node_modules/
+dist/
+carusel-studio.html
+desktop/index.html
+desktop/build/
