@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 30;                                        // bumped by publish.sh
+const APP_VERSION = 31;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1368,14 +1368,14 @@ function refreshPanel(){
     <h3>Cadre (slide-uri)</h3><div class="row"><button class="btn icon" data-act="f-">−</button><div style="flex:1;text-align:center;font-size:16px;font-weight:600">${state.frames}</div><button class="btn icon" data-act="f+">＋</button></div>
     <div class="seg">${[3, 5, 10, 20].map(n => `<button class="btn ${state.frames === n ? 'on' : ''}" data-act="fn:${n}">${n}</button>`).join('')}</div>
     ${tplActive() && photoCount() > 1 ? '<div class="row"><button class="btn" style="flex:1" data-act="arrange">✦ Aranjează automat pozele</button></div><div class="tip" style="margin:0 0 4px">Păstrează ordinea de la un cadru la altul și pune fiecare poză în celula care i se potrivește ca formă, ca să se taie cât mai puțin din ea.</div>' : ''}
-    <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
-    ${UTPL.length ? `<div class="cgrid">${UTPL.map(D => `<div class="utpl"><button class="btn ${state.des === D.id ? 'on' : ''}" data-act="des:${D.id}"><img src="${D.thumb}" alt="">${esc(D.n)}</button><button class="x" data-act="utdel:${D.id}" title="Șterge șablonul" aria-label="Șterge șablonul">×</button></div>`).join('')}</div>` : ''}
-    <div class="row"><button class="btn" style="flex:1" data-act="utsave">＋ Salvează aranjarea ca șablon</button></div>
-    ${UTPL.length ? '' : '<div class="tip" style="margin:0 0 4px">Aranjează pânza cum îți place, apoi apasă butonul. Șablonul apare aici și îl refolosești cu alte poze.</div>'}
     <h3>Șabloane moderne (${DESIGNS.length})</h3>
     <div class="cgrid">${DSHOW.map(i => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(DESIGNS[i])}${DESIGNS[i].n}</button>`).join('')}</div>
     <div class="row"><button class="btn ${state.des == null && state.tpl == null ? 'on' : ''}" style="flex:1" data-act="des:none">Fără șablon (pânză goală)</button></div>
     <div class="tip" style="margin:0 0 4px">Compoziții gata făcute, cu fundal, rame și text de exemplu. Pune pozele tale în celule și schimbă textele.</div>
+    <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
+    ${UTPL.length ? `<div class="cgrid">${UTPL.map(D => `<div class="utpl"><button class="btn ${state.des === D.id ? 'on' : ''}" data-act="des:${D.id}"><img src="${D.thumb}" alt="">${esc(D.n)}</button><button class="x" data-act="utdel:${D.id}" title="Șterge șablonul" aria-label="Șterge șablonul">×</button></div>`).join('')}</div>` : ''}
+    <div class="row"><button class="btn" style="flex:1" data-act="utsave">＋ Salvează aranjarea ca șablon</button></div>
+    ${UTPL.length ? '' : '<div class="tip" style="margin:0 0 4px">Aranjează pânza cum îți place, apoi apasă butonul. Șablonul apare aici și îl refolosești cu alte poze.</div>'}
     <details data-sec="col" ${openSec.col || state.tpl != null ? 'open' : ''}><summary>Colaje simple (${COLLAGES.length})</summary>
     <div class="cgrid">${COLLAGES.map((T, i) => `<button class="btn ${state.tpl === i ? 'on' : ''}" data-act="col:${i}">${thumb(T)}${T.n}</button>`).join('')}</div>
     ${rng('Spațiu', 'gap', 0, 120, 1, state.gap ?? 30, 'state')}${rng('Colțuri', 'rad', 0, 200, 1, state.rad ?? 0, 'state')}
