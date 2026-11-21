@@ -74,6 +74,7 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 .cgrid .btn{padding:6px 6px 5px;white-space:normal;font-size:11px;line-height:1.25;color:var(--muted);text-align:center}
 .cgrid .btn.on,aside .row .btn.on{border-color:var(--accent);color:var(--accent)}
 .cgrid img{display:block;width:100%;aspect-ratio:96/40;object-fit:cover;object-position:left center;margin-bottom:4px;border-radius:3px;background:var(--bg)}
+#scroller.swap{cursor:crosshair !important}
 .utpl{position:relative;display:flex}.utpl>.btn{flex:1;min-width:0}
 .utpl .x{position:absolute;top:-5px;right:-5px;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:14px;line-height:1;padding:0;cursor:pointer}
 .utpl .x:hover{border-color:#e5484d;color:#e5484d}
@@ -217,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 24;                                        // bumped by publish.sh
+const APP_VERSION = 25;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -322,12 +323,14 @@ async function addFiles(files, at){
   const target = pickFor; pickFor = null;
   const list = [...files].filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif|heic)$/i.test(f.name || ''));
   if (!list.length) return;
+  if (list.length > 1) list.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, {numeric:true}));   // in shooting order, as the files are numbered
   const ids = []; let bad = 0, last = null;
   for (const f of list){ try{ ids.push(await addBlob(f)); }catch(e){ bad++; } }
   if (bad) toast(bad + ' fișier(e) nu au putut fi citite (format neacceptat de browser)');
   if (!ids.length) return;
+  const added = new Set(ids), auto = () => { if (added.size > 1 && tplActive() && autoArrange(added)) toast('Pozele au fost așezate în celulele care li se potrivesc.'); };
   const into = cell => { Object.assign(cell, {img:ids.shift(), cx:.5, cy:.5, cz:1}); last = cell; };
-  const done = () => { if (last && state.els.includes(last)) sel = last.id; commit(); refreshPanel(); render(); };
+  const done = () => { auto(); if (last && state.els.includes(last)) sel = last.id; cropId = null; commit(); refreshPanel(); render(); };
   const hit = target ? state.els.find(e => e.id === target) : at ? hitTest(at.x, at.y) : null;
   if (hit && hit.type === 'image' && (target || isSlot(hit))) into(hit);          // the cell that was tapped or dropped on comes first
   const slots = state.els.filter(isSlot).sort((a, b) => (a.x + a.w / 2) - (b.x + b.w / 2) || a.y - b.y), tp = tplActive();
@@ -345,6 +348,7 @@ async function addFiles(files, at){
     if (r === 'a'){
       ids.splice(0).forEach((id, n) => state.els.push(newImg(id, W() + n, 0, 1, 1)));   // parked to the right so they are placed last
       state.frames = need; applyTpl(tp[0], tp[1], true);       // extend, and leave no empty cell behind
+      if (autoArrange(added)){ commit(); render(); }
       if (room < total) toast(pl(total - room, 'poză nu a mai încăput', 'poze nu au mai încăput'));
       return;
     }
@@ -360,6 +364,41 @@ async function addFiles(files, at){
 }
 
 /* ---------- text ---------- */
+/* ---------- automatic arrangement ----------
+   Like an album designer's auto layout: the photos keep their order from frame to frame, but inside each frame they are
+   dealt to the cells they fit best (upright photos to upright cells, wide to wide), so as little as possible is cropped away. */
+function movePhoto(a, b){                  // exchange the photos of two cells; filters the user chose travel with the photo, a template's stay with the cell
+  const take = e => ({img:e.img, flip:e.flip, fx:e.dfx ? undefined : e.fx}), pa = take(a), pb = take(b);
+  const give = (e, q) => { e.img = q.img; e.flip = !!q.flip; if (!e.dfx){ if (q.fx) e.fx = q.fx; else delete e.fx; } Object.assign(e, {cx:.5, cy:.5, cz:1}); };
+  give(a, pb); give(b, pa);
+}
+function fitCost(e, id){                   // how much of photo id is lost in cell e, weighted so the big cells get the best matches
+  const im = images.get(id), rp = im.w / im.h, rc = e.w / e.h;
+  return (1 - Math.min(rp / rc, rc / rp)) * Math.sqrt(e.w * e.h);
+}
+function autoArrange(only){                // only = Set of photo ids to consider (a fresh import); all photos when omitted
+  const groups = new Map(); let moved = 0;
+  for (const e of state.els) if (e.type === 'image' && e.img && (!only || only.has(e.img))){
+    const f = Math.floor((e.x + e.w / 2) / FW); if (!groups.has(f)) groups.set(f, []); groups.get(f).push(e);
+  }
+  for (const cells of groups.values()){
+    for (let pass = 0, better = true; better && pass < 20; pass++){      // swap pairs for as long as it helps
+      better = false;
+      for (let i = 0; i < cells.length; i++) for (let j = i + 1; j < cells.length; j++){
+        const a = cells[i], b = cells[j];
+        if (fitCost(a, b.img) + fitCost(b, a.img) < fitCost(a, a.img) + fitCost(b, b.img) - 1e-6){ movePhoto(a, b); better = true; moved++; }
+      }
+    }
+  }
+  return moved;
+}
+let swapFrom = null;                       // "Schimbă cu altă poză": the photo waiting for its partner
+function swapPick(e){
+  const a = state.els.find(x => x.id === swapFrom); swapFrom = null; sc.classList.remove('swap');
+  if (!a || !e || e.type !== 'image' || e.id === a.id){ toast('Schimbul a fost anulat.'); return render(); }
+  if (e.img) movePhoto(a, e); else { movePhoto(e, a); }                 // an empty cell simply takes the photo
+  sel = e.id; cropId = null; commit(); refreshPanel(); render();
+}
 function fontOf(e){ return (e.italic ? 'italic ' : '') + (e.bold ? '700 ' : '400 ') + e.size + 'px "' + e.font + '", sans-serif'; }
 const glyphs = l => Array.from(l);
 function lineW(c, l, ls){                 // width of one line, with optional letter spacing
@@ -652,7 +691,7 @@ function paint(){
     }
     // size / position badge, in export pixels
     const b = aabb(e), act = drag && drag.moved ? drag.mode : '';
-    const t = crop ? (COARSE ? 'Reîncadrare: trage poza' : 'Reîncadrare: trage poza · Enter = gata') : act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px';
+    const t = swapFrom === e.id ? 'Apasă pe poza cu care o schimbi' : crop ? (COARSE ? 'Reîncadrare: trage poza' : 'Reîncadrare: trage poza · Enter = gata') : act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px';
     ctx.font = '600 11px -apple-system,"Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const bw = ctx.measureText(t).width + 14, vw = cv.width / dpr, vh = cv.height / dpr;
     const bx = clamp(w2s(b.cx, 0)[0], bw / 2 + 4, Math.max(bw / 2 + 4, vw - bw / 2 - 4)), by = clamp(w2s(0, b.y1)[1] + 20, 14, Math.max(14, vh - 14));
@@ -716,6 +755,7 @@ sc.addEventListener('pointerdown', ev => {
   const [mx, my] = evPos(ev);
   if (mx > sc.clientWidth || my > sc.clientHeight) return;      // scrollbar
   const [x, y] = s2w(mx, my);
+  if (swapFrom){ ev.preventDefault(); tap = null; return swapPick(hitTest(x, y)); }
   const hd = hitHandle(mx, my, ev.pointerType === 'touch' ? 18 : 10);
   if (hd){
     const e = getSel();
@@ -874,6 +914,7 @@ window.addEventListener('keydown', ev => {
   if (!e) return;
   const cr = cropping();
   if (k === 'enter' && e.type === 'image' && e.img){ ev.preventDefault(); return setCrop(!cr); }
+  if (k === 'escape' && swapFrom){ ev.preventDefault(); return swapPick(null); }
   if (k === 'escape' && cr){ ev.preventDefault(); return setCrop(false); }
   if (cr && k.startsWith('arrow')){                     // nudge the photo inside its frame
     ev.preventDefault(); const d = ev.shiftKey ? .05 : .01;
@@ -901,6 +942,7 @@ function act(a){
   if (a === 'des:none') return clearTemplate();
   if (a.startsWith('des:')){ const k = a.slice(4); return chooseTemplate('des', /^\d+$/.test(k) ? +k : k); }
   if (a === 'utsave') return utplAsk();
+  if (a === 'arrange'){ const n = autoArrange(); if (n){ commit(); render(); } return toast(n ? 'Pozele au fost reașezate după forma celulelor.' : 'Pozele sunt deja în celulele care li se potrivesc cel mai bine.'); }
   if (a.startsWith('utdel:')) return utplDelete(a.slice(6));
   if (a.startsWith('fn:')) return setFrames(+a.slice(3));
   if (a === 'getapp') return $('dlgApp').showModal();
@@ -911,6 +953,7 @@ function act(a){
   if (a === 'new') return leave(newProject);
   if (!e) return;
   if (a === 'pick') return pickImage(e.id);
+  if (a === 'swap'){ swapFrom = e.id; cropId = null; sc.classList.add('swap'); toast('Apasă acum pe poza (sau celula) cu care vrei să o schimbi.'); refreshPanel(); return render(); }
   if (a === 'crop') return setCrop(true);
   if (a === 'cropdone') return setCrop(false);
   if (a.startsWith('fx:')) e.fx = Object.assign({}, FX0, FX_PRESETS[+a.slice(3)][1]);
@@ -1194,6 +1237,9 @@ const DESIGNS = [
     {i:1, x:3.0, y:0.6667, w:0.3333, h:0.3333}, {i:1, x:3.3333, y:0.6667, w:0.3333, h:0.3333}, {i:1, x:3.6667, y:0.6667, w:0.3333, h:0.3333, fx:{sat:-100, ct:12}},
     {s:'rect', x:4, y:0, w:2, h:1, c:'#7d0000'}, {i:1, x:4.18, y:.1535, w:.64, h:.5425, b:7, bc:'#000000', fx:{sat:-100, ct:12}},
     {i:1, x:6, y:0, w:.5, h:.5, fx:{sat:-100, ct:12}}, {i:1, x:6.5, y:0, w:.5, h:.5}, {i:1, x:6, y:.5, w:.5, h:.5}, {i:1, x:6.5, y:.5, w:.5, h:.5, fx:{sat:-100, ct:12}}]},
+  {n:'Patru pe cadru', bg:['#ffffff'], p:1, it:[
+    {i:1, x:.028, y:.0225, w:.462, h:.4665}, {i:1, x:.51, y:.0225, w:.462, h:.4665},
+    {i:1, x:.028, y:.511, w:.462, h:.4665}, {i:1, x:.51, y:.511, w:.462, h:.4665}]},
 ];
 function tplFx(e, fx){                     // a filter the template asks for (blur, black and white); removed again when the photo moves to a plain cell
   if (fx){ e.fx = Object.assign({}, fx); e.dfx = 1; } else if (e.dfx){ delete e.fx; delete e.dfx; }
@@ -1315,6 +1361,7 @@ function refreshPanel(){
     <div class="row"><label>Tip</label><select data-o="bg" data-k="type"><option value="solid" ${b.type === 'solid' ? 'selected' : ''}>Culoare simplă</option><option value="grad" ${b.type === 'grad' ? 'selected' : ''}>Gradient</option></select></div>
     <div class="row"><label>Culoare</label><input type="color" data-o="bg" data-k="c1" value="${b.c1}">${b.type === 'grad' ? `<input type="color" data-o="bg" data-k="c2" value="${b.c2}">` : ''}</div>
     ${b.type === 'grad' ? rng('Unghi', 'angle', 0, 360, 1, b.angle, 'bg') : ''}
+    ${tplActive() && photoCount() > 1 ? '<div class="row"><button class="btn" style="flex:1" data-act="arrange">✦ Aranjează automat pozele</button></div><div class="tip" style="margin:0 0 4px">Păstrează ordinea de la un cadru la altul și pune fiecare poză în celula care i se potrivește ca formă, ca să se taie cât mai puțin din ea.</div>' : ''}
     <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
     ${UTPL.length ? `<div class="cgrid">${UTPL.map(D => `<div class="utpl"><button class="btn ${state.des === D.id ? 'on' : ''}" data-act="des:${D.id}"><img src="${D.thumb}" alt="">${esc(D.n)}</button><button class="x" data-act="utdel:${D.id}" title="Șterge șablonul" aria-label="Șterge șablonul">×</button></div>`).join('')}</div>` : ''}
     <div class="row"><button class="btn" style="flex:1" data-act="utsave">＋ Salvează aranjarea ca șablon</button></div>
@@ -1346,7 +1393,8 @@ function refreshPanel(){
       const fx = Object.assign({}, FX0, e.fx);
       const im = e.img && images.get(e.img), up = im ? Math.max(e.w / im.w, e.h / im.h) * e.cz : 0;
       h += `<h3>Imagine</h3><div class="tip" style="margin:0 0 8px">Pe pânză: <b>${Math.round(e.w)} × ${Math.round(e.h)} px</b>${im ? `<br>Poza originală: ${im.w} × ${im.h} px${up > 1.25 ? '<br>⚠︎ Poza e mărită peste rezoluția ei și poate ieși neclară.' : ''}` : ''}</div>
-      ${e.img ? (cropping() ? `<div class="row"><button class="btn primary" style="flex:1" data-act="cropdone">✓ Gata cu reîncadrarea</button></div><div class="tip" style="margin:0 0 8px">Trage poza ca să alegi ce se vede în chenar${COARSE ? '' : '; rotița mouse-ului mărește'}. După „Gata”${COARSE ? '' : ' (sau <kbd>Enter</kbd>)'} poți muta și redimensiona chenarul.</div>` : `<div class="row"><button class="btn" style="flex:1" data-act="crop">⛶ Reîncadrează poza</button></div>`) : ''}<div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
+      ${e.img ? (cropping() ? `<div class="row"><button class="btn primary" style="flex:1" data-act="cropdone">✓ Gata cu reîncadrarea</button></div><div class="tip" style="margin:0 0 8px">Trage poza ca să alegi ce se vede în chenar${COARSE ? '' : '; rotița mouse-ului mărește'}. După „Gata”${COARSE ? '' : ' (sau <kbd>Enter</kbd>)'} poți muta și redimensiona chenarul.</div>` : `<div class="row"><button class="btn" style="flex:1" data-act="crop">⛶ Reîncadrează poza</button></div>`) : ''}
+      ${e.img && state.els.filter(x => x.type === 'image').length > 1 ? `<div class="row"><button class="btn ${swapFrom === e.id ? 'on' : ''}" style="flex:1" data-act="swap">⇄ Schimbă cu altă poză</button></div>` : ''}<div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
       <h3>Decupaj</h3>${rng('Zoom', 'cz', 1, 4, 0.01, e.cz)}${rng('Orizontal', 'cx', 0, 1, 0.005, e.cx)}${rng('Vertical', 'cy', 0, 1, 0.005, e.cy)}
       <h3>Filtru</h3><div class="seg chips">${FX_PRESETS.map(([n, v], i) => `<button class="btn ${JSON.stringify(Object.assign({}, FX0, v)) === JSON.stringify(fx) ? 'on' : ''}" data-act="fx:${i}">${n}</button>`).join('')}</div>
       ${rng('Luminozitate', 'br', -100, 100, 1, fx.br, 'fx')}${rng('Contrast', 'ct', -100, 100, 1, fx.ct, 'fx')}${rng('Saturație', 'sat', -100, 100, 1, fx.sat, 'fx')}${rng('Căldură', 'warm', -100, 100, 1, fx.warm, 'fx')}${rng('Estompare', 'fade', 0, 100, 1, fx.fade, 'fx')}${rng('Neclaritate', 'blur', 0, 100, 1, fx.blur, 'fx')}
