@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 29;                                        // bumped by publish.sh
+const APP_VERSION = 30;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1254,6 +1254,7 @@ function tplFx(e, fx){                     // a filter the template asks for (bl
   if (fx){ e.fx = Object.assign({}, fx); e.dfx = 1; } else if (e.dfx){ delete e.fx; delete e.dfx; }
   return e;
 }
+const DSHOW = DESIGNS.map((D, i) => i).sort((a, b) => (b >= 22) - (a >= 22) || a - b);   // shown with the photo-story templates (added last) first; positions in DESIGNS stay fixed because projects store them
 const DES = i => typeof i === 'number' ? DESIGNS[i] : UTPL.find(D => D.id === i);   // built-in templates go by position, the user's own by id
 function designEls(D, frames, imgs, trim, edited){        // the elements template D puts on a canvas of this many frames
   const w = frames * FW, h = H(), out = [];
@@ -1366,17 +1367,13 @@ function refreshPanel(){
     h += `<h3>Format</h3><div class="seg">${Object.keys(FORMATS).map(f => `<button class="btn ${f === state.format ? 'on' : ''}" data-act="fmt:${f}">${f}</button>`).join('')}</div>
     <h3>Cadre (slide-uri)</h3><div class="row"><button class="btn icon" data-act="f-">−</button><div style="flex:1;text-align:center;font-size:16px;font-weight:600">${state.frames}</div><button class="btn icon" data-act="f+">＋</button></div>
     <div class="seg">${[3, 5, 10, 20].map(n => `<button class="btn ${state.frames === n ? 'on' : ''}" data-act="fn:${n}">${n}</button>`).join('')}</div>
-    <h3>Fundal</h3>
-    <div class="row"><label>Tip</label><select data-o="bg" data-k="type"><option value="solid" ${b.type === 'solid' ? 'selected' : ''}>Culoare simplă</option><option value="grad" ${b.type === 'grad' ? 'selected' : ''}>Gradient</option></select></div>
-    <div class="row"><label>Culoare</label><input type="color" data-o="bg" data-k="c1" value="${b.c1}">${b.type === 'grad' ? `<input type="color" data-o="bg" data-k="c2" value="${b.c2}">` : ''}</div>
-    ${b.type === 'grad' ? rng('Unghi', 'angle', 0, 360, 1, b.angle, 'bg') : ''}
     ${tplActive() && photoCount() > 1 ? '<div class="row"><button class="btn" style="flex:1" data-act="arrange">✦ Aranjează automat pozele</button></div><div class="tip" style="margin:0 0 4px">Păstrează ordinea de la un cadru la altul și pune fiecare poză în celula care i se potrivește ca formă, ca să se taie cât mai puțin din ea.</div>' : ''}
     <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
     ${UTPL.length ? `<div class="cgrid">${UTPL.map(D => `<div class="utpl"><button class="btn ${state.des === D.id ? 'on' : ''}" data-act="des:${D.id}"><img src="${D.thumb}" alt="">${esc(D.n)}</button><button class="x" data-act="utdel:${D.id}" title="Șterge șablonul" aria-label="Șterge șablonul">×</button></div>`).join('')}</div>` : ''}
     <div class="row"><button class="btn" style="flex:1" data-act="utsave">＋ Salvează aranjarea ca șablon</button></div>
     ${UTPL.length ? '' : '<div class="tip" style="margin:0 0 4px">Aranjează pânza cum îți place, apoi apasă butonul. Șablonul apare aici și îl refolosești cu alte poze.</div>'}
     <h3>Șabloane moderne (${DESIGNS.length})</h3>
-    <div class="cgrid">${DESIGNS.map((D, i) => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(D)}${D.n}</button>`).join('')}</div>
+    <div class="cgrid">${DSHOW.map(i => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(DESIGNS[i])}${DESIGNS[i].n}</button>`).join('')}</div>
     <div class="row"><button class="btn ${state.des == null && state.tpl == null ? 'on' : ''}" style="flex:1" data-act="des:none">Fără șablon (pânză goală)</button></div>
     <div class="tip" style="margin:0 0 4px">Compoziții gata făcute, cu fundal, rame și text de exemplu. Pune pozele tale în celule și schimbă textele.</div>
     <details data-sec="col" ${openSec.col || state.tpl != null ? 'open' : ''}><summary>Colaje simple (${COLLAGES.length})</summary>
@@ -1390,6 +1387,10 @@ function refreshPanel(){
       <button class="btn" data-act="tpl:two">Două rânduri<small>Două benzi suprapuse</small></button>
     </div>
     </details>
+    <h3>Fundal</h3>
+    <div class="row"><label>Tip</label><select data-o="bg" data-k="type"><option value="solid" ${b.type === 'solid' ? 'selected' : ''}>Culoare simplă</option><option value="grad" ${b.type === 'grad' ? 'selected' : ''}>Gradient</option></select></div>
+    <div class="row"><label>Culoare</label><input type="color" data-o="bg" data-k="c1" value="${b.c1}">${b.type === 'grad' ? `<input type="color" data-o="bg" data-k="c2" value="${b.c2}">` : ''}</div>
+    ${b.type === 'grad' ? rng('Unghi', 'angle', 0, 360, 1, b.angle, 'bg') : ''}
     <h3>Proiect${proj.name ? ' · ' + esc(proj.name) : ''}</h3><div class="grid2"><button class="btn" data-act="save">Salvează</button><button class="btn" data-act="lib">Proiecte…</button></div>
     <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
     ${FEEDBACK_URL ? '<h3>Părerea ta</h3><div class="row"><button class="btn" style="flex:1" data-act="feedback">Trimite feedback…</button></div>' : ''}
