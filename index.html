@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 26;                                        // bumped by publish.sh
+const APP_VERSION = 27;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -842,7 +842,7 @@ function endDrag(){
   if (!drag) return;
   const d = drag, moved = d.moved; drag = null;
   if (moved){ commit(); refreshPanel(); }
-  else if (d.wasSel && d.mode === 'move'){ const e = getSel(); if (e && isSlot(e)) pickImage(e.id); }
+  else if (d.mode === 'move'){ const e = getSel(); if (e && isSlot(e)) pickImage(e.id); }   // a click on an empty cell (the +) opens the photo picker at once
   render();
 }
 sc.addEventListener('pointerup', ev => {
@@ -850,6 +850,7 @@ sc.addEventListener('pointerup', ev => {
     if (Math.hypot(ev.clientX - tap.x, ev.clientY - tap.y) < 10){
       if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
       sel = tap.id; autoCrop(getSel()); refreshPanel(); render();
+      const te = getSel(); if (te && isSlot(te)) pickImage(te.id);
       if (tap.id == null){ const now = Date.now(); if (now - lastTap < 350) fit(); lastTap = now; }
     }
     tap = null;
@@ -1376,7 +1377,7 @@ function refreshPanel(){
     <details data-sec="col" ${openSec.col || state.tpl != null ? 'open' : ''}><summary>Colaje simple (${COLLAGES.length})</summary>
     <div class="cgrid">${COLLAGES.map((T, i) => `<button class="btn ${state.tpl === i ? 'on' : ''}" data-act="col:${i}">${thumb(T)}${T.n}</button>`).join('')}</div>
     ${rng('Spațiu', 'gap', 0, 120, 1, state.gap ?? 30, 'state')}${rng('Colțuri', 'rad', 0, 200, 1, state.rad ?? 0, 'state')}
-    <div class="tip" style="margin-top:4px">Alege numărul de cadre, apoi un colaj. Pozele adăugate intră pe rând în celulele goale; ${COARSE ? 'atinge' : 'apasă'} o celulă selectată ca să-i alegi poza.</div>
+    <div class="tip" style="margin-top:4px">Alege numărul de cadre, apoi un colaj. Pozele adăugate intră pe rând în celulele goale; ${COARSE ? 'atinge' : 'apasă'} pe plusul unei celule goale ca să alegi pozele direct de acolo; poți selecta mai multe odată.</div>
     </details>
     <details data-sec="auto" ${openSec.auto ? 'open' : ''}><summary>Aranjare după forma pozelor</summary><div class="tpl">
       <button class="btn" data-act="tpl:pano">Panoramă<small>Prima imagine întinsă peste toate cadrele</small></button>
