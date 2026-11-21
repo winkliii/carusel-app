@@ -73,6 +73,10 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
 .cgrid .btn{padding:6px 6px 5px;white-space:normal;font-size:11px;line-height:1.25;color:var(--muted);text-align:center}
 .cgrid .btn.on,aside .row .btn.on{border-color:var(--accent);color:var(--accent)}
+.cgrid img{display:block;width:100%;aspect-ratio:96/40;object-fit:cover;object-position:left center;margin-bottom:4px;border-radius:3px;background:var(--bg)}
+.utpl{position:relative;display:flex}.utpl>.btn{flex:1;min-width:0}
+.utpl .x{position:absolute;top:-5px;right:-5px;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:14px;line-height:1;padding:0;cursor:pointer}
+.utpl .x:hover{border-color:#e5484d;color:#e5484d}
 .cgrid svg{display:block;width:100%;height:auto;margin-bottom:4px;color:var(--text);background:var(--bg);border-radius:3px}
 .seg{margin-bottom:2px}
 .tip{color:var(--muted);font-size:12px;margin-top:14px;line-height:1.5}
@@ -168,6 +172,13 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <div class="dlgbtns"><button class="btn" data-close>Renunță</button><button class="btn danger" id="newSkip">Nu salva</button><button class="btn primary" id="newSave" autofocus>Salvează și continuă</button></div>
 </dialog>
 
+<dialog id="dlgTpl">
+  <h2>Salvează ca șablon</h2>
+  <div class="tip" id="tplInfo" style="margin:0 0 10px"></div>
+  <div class="row"><input type="text" id="tplName" maxlength="40" placeholder="Numele șablonului"></div>
+  <div class="dlgbtns"><button class="btn" data-close>Renunță</button><button class="btn primary" id="tplSave">Salvează șablonul</button></div>
+</dialog>
+
 <dialog id="dlgLib">
   <h2>Proiecte</h2>
   <div class="row"><input type="text" id="libName" maxlength="60" placeholder="Numele proiectului"><button class="btn primary" id="libSave">Salvează-l pe cel curent</button></div>
@@ -206,7 +217,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 15;                                        // bumped by publish.sh
+const APP_VERSION = 16;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -858,7 +869,9 @@ function act(a){
   if (a.startsWith('tpl:')) return template(a.slice(4));
   if (a.startsWith('col:')) return chooseTemplate('col', +a.slice(4));
   if (a === 'des:none') return clearTemplate();
-  if (a.startsWith('des:')) return chooseTemplate('des', +a.slice(4));
+  if (a.startsWith('des:')){ const k = a.slice(4); return chooseTemplate('des', /^\d+$/.test(k) ? +k : k); }
+  if (a === 'utsave') return utplAsk();
+  if (a.startsWith('utdel:')) return utplDelete(a.slice(6));
   if (a.startsWith('fn:')) return setFrames(+a.slice(3));
   if (a === 'getapp') return $('dlgApp').showModal();
   if (a === 'update') return checkUpdate(true);
@@ -979,14 +992,14 @@ function collage(i, live, trim){
 /* ---------- template capacity: keeping photos and cells in step ---------- */
 const photoCount = () => state.els.filter(e => e.type === 'image' && e.img).length;
 const pl = (n, one, many) => n + ' ' + (n === 1 ? one : (n % 100 >= 20 || n % 100 === 0 ? 'de ' : '') + many);   // Romanian plural: 1 loc, 5 locuri, 20 de locuri
-const tplActive = () => state.tpl != null ? ['col', state.tpl] : state.des != null ? ['des', state.des] : null;
+const tplActive = () => state.tpl != null ? ['col', state.tpl] : state.des != null && DES(state.des) ? ['des', state.des] : null;
 function designCells(D, frames){
   const w = frames * FW, ok = (it, t) => it.i && (t * D.p + it.x) * FW <= w - FW * .15;
   let n = (D.first || []).filter(it => ok(it, 0)).length;
   for (let t = 0; t * D.p < frames; t++) n += D.it.filter(it => ok(it, t)).length;
   return n;
 }
-const capacity = (kind, i, frames) => kind === 'col' ? collageRects(COLLAGES[i], frames, state.gap ?? 30).length : designCells(DESIGNS[i], frames);
+const capacity = (kind, i, frames) => kind === 'col' ? collageRects(COLLAGES[i], frames, state.gap ?? 30).length : designCells(DES(i), frames);
 function framesFor(kind, i, photos){ for (let f = 1; f <= MAXF; f++) if (capacity(kind, i, f) >= photos) return f; return MAXF; }
 const applyTpl = (kind, i, trim) => kind === 'col' ? collage(i, false, trim) : design(i, trim);
 function ask(title, msg, a, b){           // two-choice question; resolves 'a', 'b' or null when dismissed
@@ -1122,14 +1135,18 @@ function tplFx(e, fx){                     // a filter the template asks for (bl
   if (fx){ e.fx = Object.assign({}, fx); e.dfx = 1; } else if (e.dfx){ delete e.fx; delete e.dfx; }
   return e;
 }
-function design(i, trim){
-  const D = DESIGNS[i], w = W(), h = H(), out = [], imgs = photosInOrder();
-  const own = state.els.filter(e => e.type !== 'image' && !e.d);     // the user's own text and shapes stay
-  const edited = {}; if (state.des === i) state.els.forEach(e => { if (e.d === 2 && e.dk) edited[e.dk] = e; });   // template text/shapes the user changed are kept as they are
+const DES = i => typeof i === 'number' ? DESIGNS[i] : UTPL.find(D => D.id === i);   // built-in templates go by position, the user's own by id
+function designEls(D, frames, imgs, trim, edited){        // the elements template D puts on a canvas of this many frames
+  const w = frames * FW, h = H(), out = [];
   let k = 0;
   const put = (it, t, key) => {
     const x0 = (t * D.p + it.x) * FW; if (x0 > w - FW * .15) return;
     if (!it.i && edited[key]){ out.push(edited[key]); return; }
+    if (it.raw){                                          // text or shape saved as it was (the user's own templates)
+      const e = Object.assign(JSON.parse(JSON.stringify(it.raw)), {id:uid(), d:1, dk:key, x:x0});
+      if (e.type !== 'text'){ e.w = it.w * FW; e.h = it.h * h; }
+      e.y = (it.y + it.h / 2) * h - e.h / 2; out.push(e); return;
+    }
     if (it.t != null){
       const e = mkText(Object.assign({text:it.t.replace('{n}', String(t + 1).padStart(2, '0')), size:it.z, color:it.c || '#111111', bold:false}, DSTYLE[it.st]));
       out.push(Object.assign(e, {x:x0 - e.w / 2, y:it.y * h - e.h / 2, rot:it.r || 0, d:1, dk:key})); return;
@@ -1140,12 +1157,59 @@ function design(i, trim){
   };
   const first = D.first || [];
   first.forEach((it, n) => { if (it.i) put(it, 0, 'f' + n); });        // a full-width photo goes underneath everything
-  for (let t = 0; t * D.p < state.frames; t++) D.it.forEach((it, n) => put(it, t, t + ':' + n));
+  for (let t = 0; t * D.p < frames; t++) D.it.forEach((it, n) => put(it, t, t + ':' + n));
   first.forEach((it, n) => { if (!it.i) put(it, 0, 'f' + n); });
+  return out;
+}
+const designBg = D => D.bg.length > 1 ? {type:'grad', c1:D.bg[0], c2:D.bg[1], angle:D.bg[2]} : Object.assign({}, state.bg, {type:'solid', c1:D.bg[0]});
+function design(i, trim){
+  const D = DES(i); if (!D) return;
+  const own = state.els.filter(e => e.type !== 'image' && !e.d);     // the user's own text and shapes stay
+  const edited = {}; if (state.des === i) state.els.forEach(e => { if (e.d === 2 && e.dk) edited[e.dk] = e; });   // template text/shapes the user changed are kept as they are
+  const out = designEls(D, state.frames, photosInOrder(), trim, edited);
   state.els = [...out, ...own];                                        // photos beyond the template's capacity are dropped; callers ask first
-  state.bg = D.bg.length > 1 ? {type:'grad', c1:D.bg[0], c2:D.bg[1], angle:D.bg[2]} : Object.assign({}, state.bg, {type:'solid', c1:D.bg[0]});
+  state.bg = designBg(D);
   state.tpl = null; state.des = i; if (!getSel()) sel = null;
   commit(); fit(); refreshPanel();
+}
+/* ---------- the user's own templates ----------
+   "Salvează ca șablon" turns what is on the canvas into a template in the same format as DESIGNS: photos become empty cells,
+   text and shapes are kept as they are, and the whole canvas is one repeat of the pattern. Kept in the browser database. */
+let UTPL = [];
+async function utplLoad(){ try{ UTPL = (await idb((await kv('readonly')).getAll(IDBKeyRange.bound('utpl:', 'utpl:\uffff')))).sort((a, b) => a.date - b.date); }catch(e){ UTPL = []; } }
+function utplThumb(D){                                    // small picture of the template with empty cells
+  const keep = state, f = Math.min(Math.ceil(D.p), 3);
+  state = Object.assign({}, keep, {frames:f}); state.bg = designBg(D); state.els = designEls(D, f, [], false, {});
+  try{ return makeThumb(); } finally{ state = keep; }
+}
+function utplAsk(){
+  if (!state.els.length) return toast('Pânza e goală. Așază întâi poze, forme sau text, apoi salvează aranjarea.');
+  let n = UTPL.length + 1; while (UTPL.some(D => D.n === 'Șablonul meu ' + n)) n++;
+  const cells = state.els.filter(e => e.type === 'image').length;
+  $('tplInfo').textContent = `Se salvează aranjarea de pe ${pl(state.frames, 'cadru', 'cadre')}: ${pl(cells, 'loc de poză', 'locuri de poză')}, plus textele, formele și fundalul. Pozele tale nu se salvează în șablon.`;
+  $('tplName').value = 'Șablonul meu ' + n; $('dlgTpl').showModal(); $('tplName').select();
+}
+async function utplSave(){
+  const name = $('tplName').value.trim() || 'Șablonul meu', h = H(), b = state.bg, id = 'u' + uid();
+  const it = state.els.map(e => {
+    const box = {x:e.x / FW, y:e.y / h, w:e.w / FW, h:e.h / h};
+    if (e.type === 'image') return Object.assign(box, {i:1, r:e.rot, f:e.frame, m:e.mask, sh:e.shadow ? 1 : 0, rad:e.radius, b:e.border, bc:e.borderColor}, hasFx(e) ? {fx:Object.assign({}, e.fx)} : null);
+    const raw = JSON.parse(JSON.stringify(e)); delete raw.id; delete raw.d; delete raw.dk;
+    return Object.assign(box, {raw});
+  });
+  const D = {id, n:name, date:Date.now(), p:state.frames, bg:b.type === 'grad' ? [b.c1, b.c2, b.angle] : [b.c1], it};
+  D.thumb = (UTPL.push(D), utplThumb(D));
+  try{ await idb((await kv('readwrite')).put(D, 'utpl:' + id)); }catch(e){ UTPL.pop(); return toast('Nu am putut salva șablonul.'); }
+  state.els.forEach((e, n) => { if (e.type !== 'image'){ e.d = 2; e.dk = '0:' + n; } });   // the canvas now counts as this template, so applying it again does not double the text
+  state.des = id; state.tpl = null; commit();
+  $('dlgTpl').close(); refreshPanel(); toast('Șablon salvat. Îl găsești la „Șabloanele mele”.');
+}
+async function utplDelete(id){
+  const D = DES(id); if (!D) return;
+  if (await ask('Ștergi șablonul?', `„${D.n}” dispare din „Șabloanele mele”. Proiectele făcute cu el rămân neschimbate.`, null, 'Șterge') !== 'b') return;
+  UTPL = UTPL.filter(x => x.id !== id); try{ await idb((await kv('readwrite')).delete('utpl:' + id)); }catch(e){}
+  if (state.des === id){ state.des = null; commit(); }
+  refreshPanel();
 }
 function dthumb(D){
   let s = '';
@@ -1186,6 +1250,10 @@ function refreshPanel(){
     <div class="row"><label>Tip</label><select data-o="bg" data-k="type"><option value="solid" ${b.type === 'solid' ? 'selected' : ''}>Culoare simplă</option><option value="grad" ${b.type === 'grad' ? 'selected' : ''}>Gradient</option></select></div>
     <div class="row"><label>Culoare</label><input type="color" data-o="bg" data-k="c1" value="${b.c1}">${b.type === 'grad' ? `<input type="color" data-o="bg" data-k="c2" value="${b.c2}">` : ''}</div>
     ${b.type === 'grad' ? rng('Unghi', 'angle', 0, 360, 1, b.angle, 'bg') : ''}
+    <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
+    ${UTPL.length ? `<div class="cgrid">${UTPL.map(D => `<div class="utpl"><button class="btn ${state.des === D.id ? 'on' : ''}" data-act="des:${D.id}"><img src="${D.thumb}" alt="">${esc(D.n)}</button><button class="x" data-act="utdel:${D.id}" title="Șterge șablonul" aria-label="Șterge șablonul">×</button></div>`).join('')}</div>` : ''}
+    <div class="row"><button class="btn" style="flex:1" data-act="utsave">＋ Salvează aranjarea ca șablon</button></div>
+    ${UTPL.length ? '' : '<div class="tip" style="margin:0 0 4px">Aranjează pânza cum îți place, apoi apasă butonul. Șablonul apare aici și îl refolosești cu alte poze.</div>'}
     <h3>Șabloane moderne (${DESIGNS.length})</h3>
     <div class="cgrid">${DESIGNS.map((D, i) => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(D)}${D.n}</button>`).join('')}</div>
     <div class="row"><button class="btn ${state.des == null && state.tpl == null ? 'on' : ''}" style="flex:1" data-act="des:none">Fără șablon (pânză goală)</button></div>
@@ -1501,7 +1569,9 @@ async function checkUpdate(manual){
   }catch(e){ if (manual) toast('Nu am putut verifica. Ai internet?'); }
   finally{ checkUpdate.busy = false; }
 }
-(async () => { await loadLocal(); commit(); refreshPanel(); fit(); checkUpdate(); })();
+$('tplSave').onclick = utplSave;
+$('tplName').addEventListener('keydown', ev => { if (ev.key === 'Enter'){ ev.preventDefault(); utplSave(); } });
+(async () => { await loadLocal(); await utplLoad(); commit(); refreshPanel(); fit(); checkUpdate(); })();
 </script>
 </body>
 </html>
