@@ -217,7 +217,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 18;                                        // bumped by publish.sh
+const APP_VERSION = 19;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1047,7 +1047,7 @@ async function setFrames(n){
    the height; text is placed by its centre with size z. The pattern in `it` repeats every p frames; `first` appears once. */
 const CAL = TEXT_STYLES[5].o.font;
 const SERIF = ['Didot','Baskerville','Georgia','Times New Roman','Cambria'].find(f => FONTS.includes(f)) || FONTS[0];
-const DSTYLE = {ser:{bold:true, font:SERIF}, serl:{bold:false, font:SERIF, ls:10}, b:{bold:true}, sp:{ls:10}, cal:{italic:true, font:CAL}, out:{bold:true, color:'#ffffff', ow:5, oc:'#111111'}, lab:{bold:true, color:'#111111', bg:true, bgc:'#ff8552'}, lab2:{bold:true, color:'#111111', bg:true, bgc:'#6fd08c'}};
+const DSTYLE = {ser:{bold:true, font:SERIF}, serr:{bold:false, font:SERIF}, serl:{bold:false, font:SERIF, ls:10}, b:{bold:true}, sp:{ls:10}, cal:{italic:true, font:CAL}, out:{bold:true, color:'#ffffff', ow:5, oc:'#111111'}, lab:{bold:true, color:'#111111', bg:true, bgc:'#ff8552'}, lab2:{bold:true, color:'#111111', bg:true, bgc:'#6fd08c'}};
 const DESIGNS = [
   {n:'Album foto', bg:['#f3ece0'], p:2, it:[
     {i:1, x:.12, y:.14, w:.7, h:.6, r:-5, f:'polaroid', sh:1}, {s:'rect', x:.36, y:.115, w:.22, h:.04, r:-8, c:'#d9c7a3', o:.8},
@@ -1151,6 +1151,16 @@ const DESIGNS = [
     {i:1, x:5.028, y:.512, w:.444, h:.465, fx:{sat:-100, ct:12}}, {i:1, x:5.492, y:.512, w:.444, h:.465},
     {i:1, x:5.96, y:.019, w:.757, h:.923},
     {t:'My kind of Storytelling', x:6.845, y:.5, z:62, st:'ser', c:'#a81c2c', r:-90}]},
+  // five frames: opener with a question over the photo, framed print on dark red, full-page portrait, 3 x 3 grid, framed print again
+  {n:'Nuntă în roșu', bg:['#ffffff'], p:5, it:[
+    {i:1, x:0, y:0, w:1, h:1},
+    {t:'Would you do it', x:.505, y:.495, z:96, st:'serr', c:'#ffffff'}, {t:'again?', x:.497, y:.572, z:96, st:'serr', c:'#a81c2c'},
+    {s:'rect', x:1, y:0, w:1, h:1, c:'#7d0000'}, {i:1, x:1.18, y:.1535, w:.64, h:.5425, b:7, bc:'#000000', fx:{sat:-100, ct:12}},
+    {i:1, x:2, y:0, w:1, h:1, fx:{sat:-100, ct:12}},
+    {i:1, x:3.0, y:0.0, w:0.3333, h:0.3333, fx:{sat:-100, ct:12}}, {i:1, x:3.3333, y:0.0, w:0.3333, h:0.3333}, {i:1, x:3.6667, y:0.0, w:0.3333, h:0.3333},
+    {i:1, x:3.0, y:0.3333, w:0.3333, h:0.3333}, {i:1, x:3.3333, y:0.3333, w:0.3333, h:0.3333, fx:{sat:-100, ct:12}}, {i:1, x:3.6667, y:0.3333, w:0.3333, h:0.3333},
+    {i:1, x:3.0, y:0.6667, w:0.3333, h:0.3333}, {i:1, x:3.3333, y:0.6667, w:0.3333, h:0.3333}, {i:1, x:3.6667, y:0.6667, w:0.3333, h:0.3333, fx:{sat:-100, ct:12}},
+    {s:'rect', x:4, y:0, w:1, h:1, c:'#7d0000'}, {i:1, x:4.18, y:.1535, w:.64, h:.5425, b:7, bc:'#000000', fx:{sat:-100, ct:12}}]},
 ];
 function tplFx(e, fx){                     // a filter the template asks for (blur, black and white); removed again when the photo moves to a plain cell
   if (fx){ e.fx = Object.assign({}, fx); e.dfx = 1; } else if (e.dfx){ delete e.fx; delete e.dfx; }
