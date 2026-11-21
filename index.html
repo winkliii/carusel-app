@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 35;                                        // bumped by publish.sh
+const APP_VERSION = 36;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -957,6 +957,7 @@ function act(a){
   if (a.startsWith('col:')){ const k = +a.slice(4); if (COLLAGES[k].g != null) state.gap = COLLAGES[k].g; return chooseTemplate('col', k); }
   if (a === 'des:none') return clearTemplate();
   if (a.startsWith('des:')){ const k = a.slice(4); return chooseTemplate('des', /^\d+$/.test(k) ? +k : k); }
+  if (a === 'moredes'){ openSec.des = !openSec.des; return refreshPanel(); }
   if (a === 'utsave') return utplAsk();
   if (a === 'arrange'){ const n = autoArrange(); if (n){ commit(); render(); } return toast(n ? 'Pozele au fost reașezate după forma celulelor.' : 'Pozele sunt deja în celulele care li se potrivesc cel mai bine.'); }
   if (a.startsWith('utdel:')) return utplDelete(a.slice(6));
@@ -1405,6 +1406,7 @@ const rng = (label, k, min, max, step, v, o = 'el') => `<div class="row" title="
 const chk = (label, k, v) => `<div class="row"><label>${label}</label><input type="checkbox" data-o="el" data-k="${k}" ${v ? 'checked' : ''}></div>`;
 function refreshPanel(){
   const e = getSel(); let h = '';
+  const allDes = openSec.des;                                       // the rest of the designed templates, behind "Mai multe șabloane"
   if (!e){
     const b = state.bg;
     h += `<h3>Format</h3><div class="seg">${Object.keys(FORMATS).map(f => `<button class="btn ${f === state.format ? 'on' : ''}" data-act="fmt:${f}">${f}</button>`).join('')}</div>
@@ -1412,7 +1414,8 @@ function refreshPanel(){
     <div class="seg">${[3, 5, 10, 20].map(n => `<button class="btn ${state.frames === n ? 'on' : ''}" data-act="fn:${n}">${n}</button>`).join('')}</div>
     ${tplActive() && photoCount() > 1 ? '<div class="row"><button class="btn" style="flex:1" data-act="arrange">✦ Aranjează automat pozele</button></div><div class="tip" style="margin:0 0 4px">Păstrează ordinea de la un cadru la altul și pune fiecare poză în celula care i se potrivește ca formă, ca să se taie cât mai puțin din ea.</div>' : ''}
     <h3>Șabloane moderne (${DESIGNS.length})</h3>
-    <div class="cgrid">${DSHOW.map(i => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(DESIGNS[i])}${DESIGNS[i].n}</button>`).join('')}</div>
+    <div class="cgrid">${(allDes ? DSHOW : DSHOW.slice(0, 6)).map(i => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(DESIGNS[i])}${DESIGNS[i].n}</button>`).join('')}</div>
+    <div class="row"><button class="btn" style="flex:1" data-act="moredes">${allDes ? '▴ Mai puține șabloane' : '▾ Mai multe șabloane (' + (DSHOW.length - 6) + ')'}</button></div>
     <div class="row"><button class="btn ${state.des == null && state.tpl == null ? 'on' : ''}" style="flex:1" data-act="des:none">Fără șablon (pânză goală)</button></div>
     <div class="tip" style="margin:0 0 4px">Compoziții gata făcute, cu fundal, rame și text de exemplu. Pune pozele tale în celule și schimbă textele.</div>
     <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
@@ -1500,7 +1503,7 @@ panel.addEventListener('dblclick', ev => {                 // double click on a 
   ev.preventDefault(); t.value = SLIDER0[t.dataset.k];
   t.dispatchEvent(new Event('input', {bubbles:true})); t.dispatchEvent(new Event('change', {bubbles:true}));
 });
-const openSec = {col:false, auto:false};                  // which folded sections the user opened; survives panel refreshes
+const openSec = {col:false, auto:false, des:false};                  // which folded sections the user opened; survives panel refreshes
 panel.addEventListener('toggle', ev => { const d = ev.target; if (d.dataset && d.dataset.sec) openSec[d.dataset.sec] = d.open; }, true);
 
 /* ---------- export ---------- */
