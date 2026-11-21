@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 28;                                        // bumped by publish.sh
+const APP_VERSION = 29;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -232,7 +232,7 @@ const APPS = [
 const FEEDBACK_URL = 'https://forms.gle/zvnxs7m3vAgKuXjz9';   // Google Form for feedback; the button is hidden when this is empty
 const DL_LABEL = NATIVE ? 'Salvează / Partajează' : 'Descarcă';
 const KEY = IS_MAC ? {mod:'⌘', alt:'⌥', shift:'⇧'} : {mod:'Ctrl', alt:'Alt', shift:'Shift'};
-const fresh = () => ({format:'4:5', frames:3, bg:{type:'solid', c1:'#ffffff', c2:'#f1d9c4', angle:0}, gap:30, rad:0, tpl:null, els:[]});
+const fresh = () => ({format:'4:5', frames:1, bg:{type:'solid', c1:'#ffffff', c2:'#f1d9c4', angle:0}, gap:30, rad:0, tpl:null, els:[]});
 let state = fresh();
 let sel = null;
 const images = new Map();           // id -> {blob, full, prev, w, h}
@@ -938,7 +938,7 @@ window.addEventListener('keydown', ev => {
 /* ---------- actions ---------- */
 function act(a){
   const e = getSel(), i = state.els.indexOf(e);
-  if (a.startsWith('fmt:')){ state.format = a.slice(4); commit(); fit(); refreshPanel(); return; }
+  if (a.startsWith('fmt:')){ state.format = a.slice(4); if (!state.els.length) state.frames = 1; const tp = tplActive(); if (tp) return applyTpl(tp[0], tp[1]); commit(); fit(); refreshPanel(); return; }   // an empty canvas goes back to one slide in the chosen format
   if (a === 'f-' || a === 'f+') return setFrames(state.frames + (a === 'f+' ? 1 : -1));
   if (a.startsWith('tpl:')) return template(a.slice(4));
   if (a.startsWith('col:')) return chooseTemplate('col', +a.slice(4));
@@ -1093,6 +1093,7 @@ function ask(title, msg, a, b, c){        // two-choice question; resolves 'a', 
   });
 }
 async function chooseTemplate(kind, i){
+  if (kind === 'des' && !photoCount() && DES(i) && state.frames < Math.ceil(DES(i).p)) state.frames = Math.ceil(DES(i).p);   // an empty canvas grows to show the whole template
   const P = photoCount(), f = state.frames, cap = capacity(kind, i, f);
   if (P > cap){
     const need = framesFor(kind, i, P), room = capacity(kind, i, need), grow = need > f && room > cap;
