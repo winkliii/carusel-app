@@ -53,8 +53,11 @@ a.btn{display:block;text-decoration:none;color:var(--text)}
 aside{width:290px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:14px;-webkit-user-select:none}
 aside h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;font-weight:600}
 aside h3:first-child{margin-top:0}
-aside summary{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;font-weight:600;cursor:pointer}
-aside details[open] summary{color:var(--text)}
+aside summary{display:block;list-style:none;background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:7px 11px;margin:0 0 8px;text-align:center;cursor:pointer}   /* folded sections open from a box that looks like the other buttons */
+aside summary::-webkit-details-marker{display:none}
+aside summary::before{content:'▾ '}
+aside details[open] summary::before{content:'▴ '}
+aside details[open] summary{border-color:var(--accent);color:var(--accent)}
 dialog a{color:var(--accent)}
 .row{display:flex;align-items:center;gap:8px;margin:7px 0}
 .row label{flex:0 0 96px;color:var(--muted)}
@@ -218,7 +221,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 36;                                        // bumped by publish.sh
+const APP_VERSION = 37;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
