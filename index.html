@@ -206,7 +206,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 11;                                        // bumped by publish.sh
+const APP_VERSION = 12;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
 const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
@@ -588,9 +588,9 @@ function paint(){
   ctx.setLineDash([]);
   // snap guides
   if (drag && drag.guides){
-    ctx.strokeStyle = '#ff8552'; ctx.lineWidth = 1;
-    for (const gx of drag.guides.x){ const x = Math.round(tx + gx * z) + .5; ctx.beginPath(); ctx.moveTo(x, ty - 14); ctx.lineTo(x, ty + h * z + 14); ctx.stroke(); }
-    for (const gy of drag.guides.y){ const y = Math.round(ty + gy * z) + .5; ctx.beginPath(); ctx.moveTo(tx - 14, y); ctx.lineTo(tx + w * z + 14, y); ctx.stroke(); }
+    ctx.strokeStyle = GUIDE; ctx.lineWidth = 1;
+    for (const g of drag.guides.x){ const x = Math.round(tx + g.v * z) + .5; ctx.beginPath(); ctx.moveTo(x, ty + g.a * z - 10); ctx.lineTo(x, ty + g.b * z + 10); ctx.stroke(); }
+    for (const g of drag.guides.y){ const y = Math.round(ty + g.v * z) + .5; ctx.beginPath(); ctx.moveTo(tx + g.a * z - 10, y); ctx.lineTo(tx + g.b * z + 10, y); ctx.stroke(); }
   }
   // selection
   const e = getSel();
@@ -603,6 +603,14 @@ function paint(){
       ctx.beginPath(); ctx.arc(hd.s[0], hd.s[1], hd.rot ? 6 : 5, 0, Math.PI * 2);
       ctx.fillStyle = hd.rot ? '#ff8552' : '#fff'; ctx.fill(); ctx.stroke();
     }
+    // size / position badge, in export pixels
+    const b = aabb(e), act = drag && drag.moved ? drag.mode : '';
+    const t = act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px';
+    ctx.font = '600 11px -apple-system,"Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const bw = ctx.measureText(t).width + 14, vw = cv.width / dpr, vh = cv.height / dpr;
+    const bx = clamp(w2s(b.cx, 0)[0], bw / 2 + 4, Math.max(bw / 2 + 4, vw - bw / 2 - 4)), by = clamp(w2s(0, b.y1)[1] + 20, 14, Math.max(14, vh - 14));
+    ctx.fillStyle = '#ff8552'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx - bw / 2, by - 10, bw, 20, 5); else ctx.rect(bx - bw / 2, by - 10, bw, 20); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(t, bx, by + .5);
   }
 }
 
@@ -622,12 +630,39 @@ function hitHandle(mx, my, rad){
   for (let i = hs.length - 1; i >= 0; i--) if (Math.hypot(hs[i].s[0] - mx, hs[i].s[1] - my) <= rad) return hs[i];
   return null;
 }
-function snapTargets(){
-  const xs = [], ys = [0, H() / 2, H()];
-  for (let i = 0; i <= state.frames; i++){ xs.push(i * FW); if (i < state.frames) xs.push((i + .5) * FW); }
+const GUIDE = '#ff2bd6';
+function aabb(e){                         // upright box around an element, whatever its rotation
+  const a = e.rot * Math.PI / 180, co = Math.abs(Math.cos(a)), si = Math.abs(Math.sin(a));
+  const hw = (e.w * co + e.h * si) / 2, hh = (e.w * si + e.h * co) / 2, cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+  return {x0:cx - hw, x1:cx + hw, y0:cy - hh, y1:cy + hh, cx, cy};
+}
+/* Lines an element can align to: frame edges and centres, plus edges and centres of every other element.
+   v = position of the line, a..b = how far it reaches along the other axis (used to draw the guide). */
+function snapTargets(skip){
+  const xs = [], ys = [], w = W(), h = H();
+  for (let i = 0; i <= state.frames; i++){ xs.push({v:i * FW, a:0, b:h}); if (i < state.frames) xs.push({v:(i + .5) * FW, a:0, b:h}); }
+  for (const v of [0, h / 2, h]) ys.push({v, a:0, b:w});
+  for (const o of state.els) if (o.id !== skip){
+    const b = aabb(o);
+    for (const v of [b.x0, b.cx, b.x1]) xs.push({v, a:b.y0, b:b.y1});
+    for (const v of [b.y0, b.cy, b.y1]) ys.push({v, a:b.x0, b:b.x1});
+  }
   return {xs, ys};
 }
-function nearest(v, list, thr){ let best = null, bd = thr; for (const t of list){ const d = Math.abs(t - v); if (d < bd){ bd = d; best = t; } } return best; }
+function nearest(v, list, thr){ let best = null, bd = thr; for (const t of list){ const d = Math.abs(t.v - v); if (d < bd){ bd = d; best = t; } } return best; }
+function snapDelta(vals, list, thr){      // smallest shift that puts one of vals on a line
+  let d = 0, bd = thr;
+  for (const v of vals){ const t = nearest(v, list, bd); if (t){ d = t.v - v; bd = Math.abs(d); } }
+  return d;
+}
+function guidesFor(vals, list, lo, hi){   // every line that vals sit on, stretched to reach the element (lo..hi)
+  const m = new Map();
+  for (const v of vals) for (const t of list) if (Math.abs(t.v - v) < .5){
+    const k = Math.round(t.v * 2), g = m.get(k) || {v:t.v, a:lo, b:hi};
+    g.a = Math.min(g.a, t.a); g.b = Math.max(g.b, t.b); m.set(k, g);
+  }
+  return [...m.values()];
+}
 
 sc.addEventListener('pointerdown', ev => {
   if (ev.button !== 0) return;
@@ -660,20 +695,15 @@ sc.addEventListener('pointermove', ev => {
   }
   const e = getSel(), o = drag.orig; if (!e) return;
   drag.moved = true; drag.guides = null; if (e.d) e.d = 2;
-  const thr = 7 / view.z, T = snapTargets();
+  const thr = 7 / view.z, T = drag.T || (drag.T = snapTargets(drag.id));
   if (drag.mode === 'move'){
     let nx = o.x + x - drag.sx, ny = o.y + y - drag.sy;
     if (!ev.metaKey && !ev.ctrlKey){
-      const g = {x:[], y:[]}, r = ((o.rot % 180) + 180) % 180;
-      let bw = o.w, bh = o.h; if (Math.abs(r - 90) < .01){ bw = o.h; bh = o.w; }
-      const cx = nx + o.w / 2, cy = ny + o.h / 2, straight = r < .01 || Math.abs(r - 90) < .01;
-      const candX = straight ? [[cx - bw / 2, T.xs], [cx + bw / 2, T.xs], [cx, T.xs]] : [[cx, T.xs]];
-      const candY = straight ? [[cy - bh / 2, T.ys], [cy + bh / 2, T.ys], [cy, T.ys]] : [[cy, T.ys]];
-      let bx = null, by = null;
-      for (const [v, l] of candX){ const t = nearest(v, l, thr); if (t != null && (bx == null || Math.abs(t - v) < Math.abs(bx[0]))) bx = [t - v, t]; }
-      for (const [v, l] of candY){ const t = nearest(v, l, thr); if (t != null && (by == null || Math.abs(t - v) < Math.abs(by[0]))) by = [t - v, t]; }
-      if (bx){ nx += bx[0]; g.x.push(bx[1]); } if (by){ ny += by[0]; g.y.push(by[1]); }
-      drag.guides = g;
+      const b = aabb(o), hw = (b.x1 - b.x0) / 2, hh = (b.y1 - b.y0) / 2;
+      nx += snapDelta([nx + o.w / 2 - hw, nx + o.w / 2, nx + o.w / 2 + hw], T.xs, thr);
+      ny += snapDelta([ny + o.h / 2 - hh, ny + o.h / 2, ny + o.h / 2 + hh], T.ys, thr);
+      const cx = nx + o.w / 2, cy = ny + o.h / 2;
+      drag.guides = {x:guidesFor([cx - hw, cx, cx + hw], T.xs, cy - hh, cy + hh), y:guidesFor([cy - hh, cy, cy + hh], T.ys, cx - hw, cx + hw)};
     }
     e.x = nx; e.y = ny;
   } else if (drag.mode === 'crop'){
@@ -695,12 +725,22 @@ sc.addEventListener('pointermove', ev => {
     const dx = x - ax, dy = y - ay, lx = dx * co + dy * si, ly = -dx * si + dy * co;
     let w = hx ? Math.max(24, lx * hx) : o.w, h = hy ? Math.max(24, ly * hy) : o.h;
     const prop = hx && hy && (o.type === 'text' || !ev.shiftKey);
-    if (prop){ const s = Math.max(w / o.w, h / o.h); w = o.w * s; h = o.h * s; }
-    else if (o.rot === 0){
-      const g = {x:[], y:[]};
-      if (hx){ const t = nearest(ax + hx * w, T.xs, thr); if (t != null && (t - ax) * hx > 24){ w = (t - ax) * hx; g.x.push(t); } }
-      if (hy){ const t = nearest(ay + hy * h, T.ys, thr); if (t != null && (t - ay) * hy > 24){ h = (t - ay) * hy; g.y.push(t); } }
-      drag.guides = g;
+    const snap = o.rot === 0 && o.type !== 'text' && !ev.metaKey && !ev.ctrlKey;
+    if (prop){
+      let s = Math.max(w / o.w, h / o.h);
+      if (snap){                          // keep the proportions, but let the moving edges catch a line
+        const tx = nearest(ax + hx * o.w * s, T.xs, thr), ty = nearest(ay + hy * o.h * s, T.ys, thr);
+        const sx = tx ? (tx.v - ax) * hx / o.w : 0, sy = ty ? (ty.v - ay) * hy / o.h : 0;
+        if (sx > 0 && sy > 0) s = Math.abs(sx - s) * o.w <= Math.abs(sy - s) * o.h ? sx : sy; else if (sx > 0) s = sx; else if (sy > 0) s = sy;
+      }
+      w = o.w * s; h = o.h * s;
+    } else if (snap){
+      if (hx){ const t = nearest(ax + hx * w, T.xs, thr); if (t && (t.v - ax) * hx > 24) w = (t.v - ax) * hx; }
+      if (hy){ const t = nearest(ay + hy * h, T.ys, thr); if (t && (t.v - ay) * hy > 24) h = (t.v - ay) * hy; }
+    }
+    if (snap){
+      const x0 = Math.min(ax, ax + hx * w) - (hx ? 0 : w / 2), y0 = Math.min(ay, ay + hy * h) - (hy ? 0 : h / 2);
+      drag.guides = {x:hx ? guidesFor([ax + hx * w], T.xs, y0, y0 + h) : [], y:hy ? guidesFor([ay + hy * h], T.ys, x0, x0 + w) : []};
     }
     if (o.type === 'text'){ e.size = Math.max(8, o.size * w / o.w); e.w = null; measure(e); w = e.w; h = e.h; }
     const ccx = ax + (hx * w / 2) * co - (hy * h / 2) * si, ccy = ay + (hx * w / 2) * si + (hy * h / 2) * co;
@@ -1097,12 +1137,13 @@ function refreshPanel(){
     <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
     ${FEEDBACK_URL ? '<h3>Părerea ta</h3><div class="row"><button class="btn" style="flex:1" data-act="feedback">Trimite feedback…</button></div>' : ''}
     ${WEB ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="getapp">⤓ Descarcă aplicația…</button></div>' : ''}
-    <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor. <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
+    <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor și de celelalte elemente. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor și de celelalte elemente (ține <kbd>${KEY.mod}</kbd> ca să nu se lipească). <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
   } else {
     const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">Șterge</button></div>`;
     if (e.type === 'image'){
       const fx = Object.assign({}, FX0, e.fx);
-      h += `<h3>Imagine</h3><div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
+      const im = e.img && images.get(e.img), up = im ? Math.max(e.w / im.w, e.h / im.h) * e.cz : 0;
+      h += `<h3>Imagine</h3><div class="tip" style="margin:0 0 8px">Pe pânză: <b>${Math.round(e.w)} × ${Math.round(e.h)} px</b>${im ? `<br>Poza originală: ${im.w} × ${im.h} px${up > 1.25 ? '<br>⚠︎ Poza e mărită peste rezoluția ei și poate ieși neclară.' : ''}` : ''}</div><div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
       <h3>Decupaj</h3>${rng('Zoom', 'cz', 1, 4, 0.01, e.cz)}${rng('Orizontal', 'cx', 0, 1, 0.005, e.cx)}${rng('Vertical', 'cy', 0, 1, 0.005, e.cy)}
       <h3>Filtru</h3><div class="seg chips">${FX_PRESETS.map(([n, v], i) => `<button class="btn ${JSON.stringify(Object.assign({}, FX0, v)) === JSON.stringify(fx) ? 'on' : ''}" data-act="fx:${i}">${n}</button>`).join('')}</div>
       ${rng('Luminozitate', 'br', -100, 100, 1, fx.br, 'fx')}${rng('Contrast', 'ct', -100, 100, 1, fx.ct, 'fx')}${rng('Saturație', 'sat', -100, 100, 1, fx.sat, 'fx')}${rng('Căldură', 'warm', -100, 100, 1, fx.warm, 'fx')}${rng('Estompare', 'fade', 0, 100, 1, fx.fade, 'fx')}
