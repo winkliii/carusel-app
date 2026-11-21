@@ -206,7 +206,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 13;                                        // bumped by publish.sh
+const APP_VERSION = 14;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1055,6 +1055,37 @@ const DESIGNS = [
   {n:'Jurnal', bg:['#fbf6ee'], p:2, it:[
     {i:1, x:.1, y:.1, w:.6, h:.46, r:-4, sh:1, b:14, bc:'#ffffff'}, {i:1, x:.52, y:.5, w:.66, h:.42, r:3, sh:1, b:14, bc:'#ffffff'}, {t:'📍', x:.18, y:.66, z:110},
     {i:1, x:1.3, y:.12, w:.58, h:.56, r:5, sh:1, b:14, bc:'#ffffff'}, {t:'azi', x:1.6, y:.8, z:120, st:'cal', c:'#444444'}, {t:'🌿', x:1.16, y:.12, z:120}]},
+  // simple, abstract ones: flat colour, a few shapes that run across the frame edges so the next slide is always hinted at
+  {n:'Fir roșu', bg:['#f6f1ea'], p:1, it:[
+    {s:'rect', x:0, y:.497, w:1, h:.006, c:'#e63946'}, {i:1, x:.2, y:.26, w:.6, h:.48, m:'ellipse', b:10, bc:'#f6f1ea'}],
+    first:[{t:'GLISEAZĂ →', x:.5, y:.9, z:28, st:'sp', c:'#e63946'}]},
+  {n:'Cercuri', bg:['#fdf0e7'], p:2, it:[
+    {s:'ellipse', x:.62, y:.1, w:.76, h:.608, c:'#ffb4a2'}, {i:1, x:.1, y:.34, w:.6, h:.48, m:'ellipse'},
+    {s:'ellipse', x:1.75, y:.62, w:.5, h:.4, c:'#6d6875'}, {i:1, x:1.16, y:.16, w:.7, h:.56, m:'ellipse'},
+    {s:'ellipse', x:.3, y:.1, w:.14, h:.112, c:'#e5989b'}]},
+  {n:'Jumătăți', bg:['#f4f1de'], p:2, it:[
+    {s:'rect', x:.5, y:0, w:1, h:1, c:'#e9c46a'}, {i:1, x:.2, y:.2, w:.6, h:.6}, {i:1, x:1.2, y:.2, w:.6, h:.6}]},
+  {n:'Text uriaș', bg:['#0f0f0f'], p:1, it:[
+    {i:1, x:.14, y:.07, w:.72, h:.3, rad:26}, {i:1, x:.14, y:.63, w:.72, h:.3, rad:26}],
+    first:[{t:'POVESTEA', x:1, y:.5, z:330, st:'b', c:'#f4f1de'}]},
+  {n:'Gradient', bg:['#7b2ff7', '#f107a3', 45], p:1, it:[
+    {s:'ellipse', x:.75, y:.62, w:.5, h:.4, c:'#ffffff', o:.22}, {i:1, x:.12, y:.14, w:.76, h:.62, rad:44, b:10, bc:'#ffffff', sh:1},
+    {t:'{n}', x:.5, y:.88, z:64, st:'b', c:'#ffffff'}]},
+  {n:'Apus', bg:['#f4f1de'], p:2, it:[
+    {s:'arch', x:.1, y:.2, w:.8, h:.8, c:'#e07a5f'}, {s:'arch', x:.2, y:.32, w:.6, h:.68, c:'#f2cc8f'}, {i:1, x:.3, y:.44, w:.4, h:.56, m:'arch'},
+    {s:'ellipse', x:.8, y:.08, w:.4, h:.32, c:'#e07a5f'}, {i:1, x:1.16, y:.46, w:.68, h:.42, rad:22},
+    {s:'rect', x:1.16, y:.93, w:.68, h:.006, c:'#3d405b'}]},
+  {n:'Șah', bg:['#f1faee'], p:2, it:[
+    {i:1, x:0, y:0, w:1, h:.5}, {s:'rect', x:0, y:.5, w:1, h:.5, c:'#264653'}, {t:'Scrie aici', x:.5, y:.75, z:70, st:'b', c:'#f1faee'},
+    {s:'rect', x:1, y:0, w:1, h:.5, c:'#e76f51'}, {t:'Și aici', x:1.5, y:.25, z:70, st:'b', c:'#ffffff'}, {i:1, x:1, y:.5, w:1, h:.5}]},
+  {n:'Galerie', bg:['#eeeae4'], p:1, it:[
+    {i:1, x:.2, y:.17, w:.6, h:.56, b:36, bc:'#ffffff', sh:1}, {t:'Titlu · 2026', x:.5, y:.84, z:26, c:'#777777'}]},
+  {n:'Pastile', bg:['#1d3557'], p:1, it:[
+    {i:1, x:.08, y:.08, w:.38, h:.62, rad:400}, {i:1, x:.54, y:.3, w:.38, h:.62, rad:400},
+    {s:'ellipse', x:.19, y:.78, w:.16, h:.128, c:'#f1faee'}, {s:'ellipse', x:.65, y:.1, w:.16, h:.128, c:'#e63946'}]},
+  {n:'Peste margine', bg:['#e8e4dc'], p:2, it:[
+    {s:'rect', x:.62, y:.1, w:1, h:.68, c:'#111111', rad:24}, {i:1, x:.5, y:.16, w:1, h:.68, rad:24},
+    {t:'{n}', x:.25, y:.5, z:150, st:'b', c:'#111111'}, {t:'→', x:1.75, y:.5, z:130, c:'#111111'}]},
 ];
 function design(i, trim){
   const D = DESIGNS[i], w = W(), h = H(), out = [], imgs = photosInOrder();
@@ -1088,7 +1119,7 @@ function dthumb(D){
     if (it.t != null){ const tw = Math.min(26, Math.max(6, it.t.length * it.z / 60)); s += `<rect x="${(x - tw / 2).toFixed(1)}" y="${(y - 1).toFixed(1)}" width="${tw.toFixed(1)}" height="2" rx="1" fill="${it.c || (it.st === 'out' ? '#ffffff' : '#111111')}"/>`; return; }
     const w = it.w === 'all' ? 96 : it.w * 32, h = it.h * 40, cx = x + w / 2, cy = y + h / 2, fill = it.s ? it.c : '#9aa0a8', rot = it.r ? ` transform="rotate(${it.r} ${cx.toFixed(1)} ${cy.toFixed(1)})"` : '', op = it.o ? ` opacity="${it.o}"` : '';
     s += (it.m === 'ellipse' || it.s === 'ellipse') ? `<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(w / 2).toFixed(1)}" ry="${(h / 2).toFixed(1)}" fill="${fill}"${op}/>`
-      : `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(.6, h).toFixed(1)}" rx="${it.m === 'arch' ? Math.min(w, h) / 2 : 1}" fill="${fill}"${op}${rot}${it.f === 'polaroid' ? ' stroke="#ffffff" stroke-width="1.6"' : it.f === 'film' ? ' stroke="#000000" stroke-width="2"' : ''}/>`;
+      : `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(.6, h).toFixed(1)}" rx="${it.m === 'arch' || it.s === 'arch' ? Math.min(w, h) / 2 : it.rad > 100 ? Math.min(w, h) / 2 : 1}" fill="${fill}"${op}${rot}${it.f === 'polaroid' ? ' stroke="#ffffff" stroke-width="1.6"' : it.f === 'film' ? ' stroke="#000000" stroke-width="2"' : ''}/>`;
   };
   (D.first || []).filter(it => it.i).forEach(it => one(it, 0));
   for (let t = 0; t * D.p < 3; t++) D.it.forEach(it => one(it, t));
