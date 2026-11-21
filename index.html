@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 34;                                        // bumped by publish.sh
+const APP_VERSION = 35;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1271,14 +1271,26 @@ const DESIGNS = [
   {n:'Patru pe cadru', bg:['#ffffff'], p:1, it:[
     {i:1, x:.028, y:.0225, w:.462, h:.4665}, {i:1, x:.51, y:.0225, w:.462, h:.4665},
     {i:1, x:.028, y:.511, w:.462, h:.4665}, {i:1, x:.51, y:.511, w:.462, h:.4665}]},
-  // five-frame album: a framed print on a blurred photo, a 3 x 2 grid, overlapping prints on a blurred photo that runs across two frames, a full page
-  {n:'Album de nuntă', bg:['#ffffff'], p:5, it:[
+  // ten-frame album (the last five frames are 'Album alb' below): a framed print on a blurred photo, a 3 x 2 grid, overlapping prints on a blurred photo that runs across two frames, a full page
+  {n:'Album de nuntă', bg:['#ffffff'], p:10, it:[
     {i:1, x:.037, y:.041, w:.925, h:.897, fx:{blur:70}}, {i:1, x:.239, y:.219, w:.521, h:.586, b:27, bc:'#ffffff'},
     {i:1, x:1.0, y:0.0, w:0.3333, h:.5}, {i:1, x:1.3333, y:0.0, w:0.3333, h:.5}, {i:1, x:1.6667, y:0.0, w:0.3333, h:.5}, {i:1, x:1.0, y:0.5, w:0.3333, h:.5}, {i:1, x:1.3333, y:0.5, w:0.3333, h:.5}, {i:1, x:1.6667, y:0.5, w:0.3333, h:.5},
     {i:1, x:2.051, y:.035, w:1.897, h:.93, fx:{blur:70}},
     {i:1, x:2.204, y:.519, w:.296, h:.336}, {i:1, x:2.295, y:.0725, w:.41, h:.4615}, {i:1, x:2.592, y:.4785, w:.321, h:.3665},
     {i:1, x:3.067, y:.115, w:.41, h:.461}, {i:1, x:3.272, y:.516, w:.291, h:.306, fx:{sat:-100, ct:12}}, {i:1, x:3.545, y:.5475, w:.312, h:.35},
-    {i:1, x:4, y:0, w:1, h:1}]},
+    {i:1, x:4, y:0, w:1, h:1},
+    {i:1, x:5.072, y:.075, w:.856, h:.8425},
+    {i:1, x:6, y:0, w:.5, h:.5}, {i:1, x:6, y:.5, w:.5, h:.5}, {i:1, x:6.5, y:0, w:.5, h:1},
+    {i:1, x:7.095, y:.12, w:.81, h:.71},
+    {i:1, x:8.069, y:.0835, w:.522, h:.4895}, {i:1, x:8.408, y:.427, w:.523, h:.49},
+    {i:1, x:9, y:0, w:0.3333, h:.5}, {i:1, x:9.3333, y:0, w:0.3333, h:.5}, {i:1, x:9.6667, y:0, w:0.3333, h:.5}, {i:1, x:9, y:0.5, w:0.3333, h:.5, fx:{sat:-100, ct:12}}, {i:1, x:9.3333, y:0.5, w:0.3333, h:.5}, {i:1, x:9.6667, y:0.5, w:0.3333, h:.5}]},
+  // five clean pages on white: bordered print, two small + one tall, bordered print, two overlapping prints, 3 x 2 grid
+  {n:'Album alb', bg:['#ffffff'], p:5, it:[
+    {i:1, x:0.072, y:.075, w:.856, h:.8425},
+    {i:1, x:1, y:0, w:.5, h:.5}, {i:1, x:1, y:.5, w:.5, h:.5}, {i:1, x:1.5, y:0, w:.5, h:1},
+    {i:1, x:2.095, y:.12, w:.81, h:.71},
+    {i:1, x:3.069, y:.0835, w:.522, h:.4895}, {i:1, x:3.408, y:.427, w:.523, h:.49},
+    {i:1, x:4, y:0, w:0.3333, h:.5}, {i:1, x:4.3333, y:0, w:0.3333, h:.5}, {i:1, x:4.6667, y:0, w:0.3333, h:.5}, {i:1, x:4, y:0.5, w:0.3333, h:.5, fx:{sat:-100, ct:12}}, {i:1, x:4.3333, y:0.5, w:0.3333, h:.5}, {i:1, x:4.6667, y:0.5, w:0.3333, h:.5}]},
 ];
 function tplFx(e, fx){                     // a filter the template asks for (blur, black and white); removed again when the photo moves to a plain cell
   if (fx){ e.fx = Object.assign({}, fx); e.dfx = 1; } else if (e.dfx){ delete e.fx; delete e.dfx; }
