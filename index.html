@@ -217,7 +217,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 16;                                        // bumped by publish.sh
+const APP_VERSION = 17;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1119,17 +1119,15 @@ const DESIGNS = [
   {n:'Peste margine', bg:['#e8e4dc'], p:2, it:[
     {s:'rect', x:.62, y:.1, w:1, h:.68, c:'#111111', rad:24}, {i:1, x:.5, y:.16, w:1, h:.68, rad:24},
     {t:'{n}', x:.25, y:.5, z:150, st:'b', c:'#111111'}, {t:'→', x:1.75, y:.5, z:130, c:'#111111'}]},
-  // editorial / wedding album: a blurred photo as backdrop with overlapping prints, full-bleed pages, small inset prints
-  {n:'Album · colaj', bg:['#ffffff'], p:2, it:[
-    {i:1, x:0, y:.045, w:.935, h:.91, fx:{blur:70}},
-    {i:1, x:.04, y:.23, w:.41, h:.46}, {i:1, x:.41, y:.145, w:.385, h:.365, fx:{sat:-100, ct:12}}, {i:1, x:.4, y:.46, w:.415, h:.47},
-    {i:1, x:1, y:0, w:1, h:1}]},
-  {n:'Album · trepte', bg:['#ffffff'], p:1, it:[
-    {i:1, x:0, y:.035, w:.95, h:.935, fx:{blur:70}},
-    {i:1, x:.065, y:.115, w:.41, h:.46}, {i:1, x:.27, y:.515, w:.29, h:.305, fx:{sat:-100, ct:12}}, {i:1, x:.545, y:.55, w:.31, h:.35}]},
-  {n:'Album · editorial', bg:['#ffffff'], p:2, it:[
-    {i:1, x:.07, y:.09, w:.86, h:.82}, {i:1, x:1, y:0, w:1, h:1, fx:{sat:-100, ct:12}},
-    {i:1, x:.85, y:.43, w:.23, h:.15, b:12, bc:'#ffffff', sh:1}]},
+  // five-frame wedding story: full-page opener, 3 x 3 grid, a plain colour page, a framed print on the same colour, 2 x 2 grid
+  {n:'Poveste de nuntă', bg:['#ffffff'], p:5, it:[
+    {i:1, x:0, y:0, w:1, h:1, fx:{sat:-100, ct:12}},
+    {i:1, x:1.0, y:0.0, w:0.3333, h:0.3333, fx:{sat:-100, ct:12}}, {i:1, x:1.3333, y:0.0, w:0.3333, h:0.3333}, {i:1, x:1.6667, y:0.0, w:0.3333, h:0.3333},
+    {i:1, x:1.0, y:0.3333, w:0.3333, h:0.3333}, {i:1, x:1.3333, y:0.3333, w:0.3333, h:0.3333, fx:{sat:-100, ct:12}}, {i:1, x:1.6667, y:0.3333, w:0.3333, h:0.3333},
+    {i:1, x:1.0, y:0.6667, w:0.3333, h:0.3333}, {i:1, x:1.3333, y:0.6667, w:0.3333, h:0.3333}, {i:1, x:1.6667, y:0.6667, w:0.3333, h:0.3333, fx:{sat:-100, ct:12}},
+    {s:'rect', x:2, y:0, w:2, h:1, c:'#7d0000'},
+    {i:1, x:3.18, y:.1535, w:.64, h:.5425, b:7, bc:'#000000', fx:{sat:-100, ct:12}},
+    {i:1, x:4, y:0, w:.5, h:.5, fx:{sat:-100, ct:12}}, {i:1, x:4.5, y:0, w:.5, h:.5}, {i:1, x:4, y:.5, w:.5, h:.5}, {i:1, x:4.5, y:.5, w:.5, h:.5, fx:{sat:-100, ct:12}}]},
 ];
 function tplFx(e, fx){                     // a filter the template asks for (blur, black and white); removed again when the photo moves to a plain cell
   if (fx){ e.fx = Object.assign({}, fx); e.dfx = 1; } else if (e.dfx){ delete e.fx; delete e.dfx; }
