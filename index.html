@@ -217,7 +217,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 22;                                        // bumped by publish.sh
+const APP_VERSION = 23;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -238,9 +238,6 @@ const images = new Map();           // id -> {blob, full, prev, w, h}
 const view = {z:0.4, offX:PAD, offY:PAD};
 /* Reframing: while cropId is the selected photo, dragging slides the picture inside its frame instead of moving the frame.
    A photo in a template cell starts in this mode when it is clicked; Enter (or the "Gata" button) ends it, Enter again or a double click starts it. */
-const locked = e => e.lock !== false;                 // photos keep their proportions when resized unless the padlock is open
-const RATIOS = [[1,1],[4,5],[5,4],[3,4],[4,3],[2,3],[3,2],[9,16],[16,9],[1,2],[2,1],[5,7],[7,5]];
-function ratioName(e){ const r = e.w / e.h, m = RATIOS.find(([a, b]) => Math.abs(r - a / b) < .012); return m ? m[0] + ':' + m[1] : (r >= 1 ? r.toFixed(2) + ':1' : '1:' + (1 / r).toFixed(2)); }
 let cropId = null;
 const cropping = () => { const e = cropId && cropId === sel ? getSel() : null; return e && e.type === 'image' && e.img ? e : null; };
 const autoCrop = e => { cropId = e && e.type === 'image' && e.img && tplActive() ? e.id : null; };
@@ -655,7 +652,7 @@ function paint(){
     }
     // size / position badge, in export pixels
     const b = aabb(e), act = drag && drag.moved ? drag.mode : '';
-    const t = crop ? (COARSE ? 'Reîncadrare: trage poza' : 'Reîncadrare: trage poza · Enter = gata') : act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px' + (e.type === 'image' ? '  ·  ' + ratioName(e) + (locked(e) ? ' 🔒' : '') : '');
+    const t = crop ? (COARSE ? 'Reîncadrare: trage poza' : 'Reîncadrare: trage poza · Enter = gata') : act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px';
     ctx.font = '600 11px -apple-system,"Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const bw = ctx.measureText(t).width + 14, vw = cv.width / dpr, vh = cv.height / dpr;
     const bx = clamp(w2s(b.cx, 0)[0], bw / 2 + 4, Math.max(bw / 2 + 4, vw - bw / 2 - 4)), by = clamp(w2s(0, b.y1)[1] + 20, 14, Math.max(14, vh - 14));
@@ -775,13 +772,12 @@ sc.addEventListener('pointermove', ev => {
     const [ax, ay] = local2world(o, -hx * o.w / 2, -hy * o.h / 2);
     const dx = x - ax, dy = y - ay, lx = dx * co + dy * si, ly = -dx * si + dy * co;
     let w = hx ? Math.max(24, lx * hx) : o.w, h = hy ? Math.max(24, ly * hy) : o.h;
-    // photos: the padlock decides (Shift flips it for one drag) and applies to the side handles too; shapes: corners keep the shape unless Shift
-    const prop = o.type === 'text' ? hx && hy : o.type === 'image' ? locked(o) !== ev.shiftKey : hx && hy && !ev.shiftKey;
+    const prop = hx && hy && (o.type === 'text' || !ev.shiftKey);
     const snap = o.rot === 0 && o.type !== 'text' && !ev.metaKey && !ev.ctrlKey;
     if (prop){
-      let s = Math.max(hx && hy ? Math.max(w / o.w, h / o.h) : hx ? w / o.w : h / o.h, 24 / Math.min(o.w, o.h));
+      let s = Math.max(w / o.w, h / o.h);
       if (snap){                          // keep the proportions, but let the moving edges catch a line
-        const tx = hx ? nearest(ax + hx * o.w * s, T.xs, thr) : null, ty = hy ? nearest(ay + hy * o.h * s, T.ys, thr) : null;
+        const tx = nearest(ax + hx * o.w * s, T.xs, thr), ty = nearest(ay + hy * o.h * s, T.ys, thr);
         const sx = tx ? (tx.v - ax) * hx / o.w : 0, sy = ty ? (ty.v - ay) * hy / o.h : 0;
         if (sx > 0 && sy > 0) s = Math.abs(sx - s) * o.w <= Math.abs(sy - s) * o.h ? sx : sy; else if (sx > 0) s = sx; else if (sy > 0) s = sy;
       }
@@ -923,7 +919,6 @@ function act(a){
   if (a === 'front'){ state.els.splice(i, 1); state.els.push(e); }
   if (a === 'back'){ state.els.splice(i, 1); state.els.unshift(e); }
   if (a === 'flip') e.flip = !e.flip;
-  if (a === 'lock') e.lock = !locked(e);
   if (a === 'fill'){ const f = clamp(Math.floor((e.x + e.w / 2) / FW), 0, state.frames - 1); Object.assign(e, {x:f * FW, y:0, w:FW, h:H(), rot:0}); }
   if (a === 'fillall'){ Object.assign(e, {x:0, y:0, w:W(), h:H(), rot:0}); state.els.splice(i, 1); state.els.unshift(e); }
   commit(); refreshPanel(); render();
@@ -1343,14 +1338,13 @@ function refreshPanel(){
     ${FEEDBACK_URL ? '<h3>Părerea ta</h3><div class="row"><button class="btn" style="flex:1" data-act="feedback">Trimite feedback…</button></div>' : ''}
     ${WEB ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="getapp">⤓ Descarcă aplicația…</button></div>' : ''}
     ${NATIVE || DESKTOP ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="update">⟳ Caută actualizări</button></div>' : ''}
-    <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor și de celelalte elemente. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor și de celelalte elemente (ține <kbd>${KEY.mod}</kbd> ca să nu se lipească). <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. Lacătul din panou păstrează sau eliberează raportul unei poze (<kbd>${KEY.shift}</kbd> îl inversează cât tragi). <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
+    <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor și de celelalte elemente. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor și de celelalte elemente (ține <kbd>${KEY.mod}</kbd> ca să nu se lipească). <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
   } else {
     const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">Șterge</button></div>`;
     if (e.type === 'image'){
       const fx = Object.assign({}, FX0, e.fx);
       const im = e.img && images.get(e.img), up = im ? Math.max(e.w / im.w, e.h / im.h) * e.cz : 0;
       h += `<h3>Imagine</h3><div class="tip" style="margin:0 0 8px">Pe pânză: <b>${Math.round(e.w)} × ${Math.round(e.h)} px</b>${im ? `<br>Poza originală: ${im.w} × ${im.h} px${up > 1.25 ? '<br>⚠︎ Poza e mărită peste rezoluția ei și poate ieși neclară.' : ''}` : ''}</div>
-      <div class="row"><button class="btn ${locked(e) ? 'on' : ''}" style="flex:1" data-act="lock" title="Păstrează sau nu raportul la redimensionare">${locked(e) ? '🔒 Raport păstrat · ' + ratioName(e) : '🔓 Raport liber · ' + ratioName(e)}</button></div>
       ${e.img ? (cropping() ? `<div class="row"><button class="btn primary" style="flex:1" data-act="cropdone">✓ Gata cu reîncadrarea</button></div><div class="tip" style="margin:0 0 8px">Trage poza ca să alegi ce se vede în chenar${COARSE ? '' : '; rotița mouse-ului mărește'}. După „Gata”${COARSE ? '' : ' (sau <kbd>Enter</kbd>)'} poți muta și redimensiona chenarul.</div>` : `<div class="row"><button class="btn" style="flex:1" data-act="crop">⛶ Reîncadrează poza</button></div>`) : ''}<div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
       <h3>Decupaj</h3>${rng('Zoom', 'cz', 1, 4, 0.01, e.cz)}${rng('Orizontal', 'cx', 0, 1, 0.005, e.cx)}${rng('Vertical', 'cy', 0, 1, 0.005, e.cy)}
       <h3>Filtru</h3><div class="seg chips">${FX_PRESETS.map(([n, v], i) => `<button class="btn ${JSON.stringify(Object.assign({}, FX0, v)) === JSON.stringify(fx) ? 'on' : ''}" data-act="fx:${i}">${n}</button>`).join('')}</div>
