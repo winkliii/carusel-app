@@ -217,7 +217,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 23;                                        // bumped by publish.sh
+const APP_VERSION = 24;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1301,7 +1301,8 @@ function thumb(T){
 
 /* ---------- side panel ---------- */
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const rng = (label, k, min, max, step, v, o = 'el') => `<div class="row"><label>${label}</label><input type="range" data-o="${o}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
+const SLIDER0 = Object.assign({cz:1, cx:.5, cy:.5, opacity:1, radius:0, border:0, rot:0, sw:0, lh:1.15, ls:0, ow:0, angle:0, gap:30, rad:0}, FX0);   // what a double click on a slider goes back to
+const rng = (label, k, min, max, step, v, o = 'el') => `<div class="row" title="Dublu-click = valoarea inițială"><label>${label}</label><input type="range" data-o="${o}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
 const chk = (label, k, v) => `<div class="row"><label>${label}</label><input type="checkbox" data-o="el" data-k="${k}" ${v ? 'checked' : ''}></div>`;
 function refreshPanel(){
   const e = getSel(); let h = '';
@@ -1393,6 +1394,11 @@ panel.addEventListener('change', ev => {
   commit(); if (['type', 'kind'].includes(ev.target.dataset.k) || ev.target.dataset.o === 'fx') refreshPanel();
 });
 panel.addEventListener('click', ev => { const b = ev.target.closest('[data-act]'); if (b) act(b.dataset.act); });
+panel.addEventListener('dblclick', ev => {                 // double click on a slider (or its label): back to the starting value
+  const row = ev.target.closest('.row'), t = row && row.querySelector('input[type=range]'); if (!t || !(t.dataset.k in SLIDER0)) return;
+  ev.preventDefault(); t.value = SLIDER0[t.dataset.k];
+  t.dispatchEvent(new Event('input', {bubbles:true})); t.dispatchEvent(new Event('change', {bubbles:true}));
+});
 const openSec = {col:false, auto:false};                  // which folded sections the user opened; survives panel refreshes
 panel.addEventListener('toggle', ev => { const d = ev.target; if (d.dataset && d.dataset.sec) openSec[d.dataset.sec] = d.open; }, true);
 
