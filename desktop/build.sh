@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 OUT="$(cd .. && pwd)/dist"
-NAME="Carusel Studio"
+NAME="Carusel CNF"
 
 cp ../carusel-studio.html index.html
 [ -d node_modules ] || npm install --no-audit --no-fund
@@ -21,7 +21,7 @@ IGNORE='^/(build|build\.sh|make-icon\.js|package-lock\.json)($|/)'
 for target in darwin:arm64 darwin:x64 win32:x64; do
   npx electron-packager . "$NAME" --platform="${target%%:*}" --arch="${target##*:}" \
     --out="$OUT" --overwrite --icon=build/icon --ignore="$IGNORE" \
-    --app-bundle-id=ro.carusel.studio --app-copyright="Carusel Studio"
+    --app-bundle-id=ro.orbanphoto.carusel --app-copyright="Carusel CNF"
 done
 
 # ad-hoc sign the Mac apps so they start on Apple Silicon
@@ -30,7 +30,7 @@ for a in arm64 x64; do codesign --force --deep -s - "$OUT/$NAME-darwin-$a/$NAME.
 # single files that are easy to copy to another computer
 cd "$OUT"
 rm -f *.zip
-ditto -c -k --keepParent "$NAME-win32-x64" "Carusel Studio - Windows.zip"
-ditto -c -k --keepParent "$NAME-darwin-arm64/$NAME.app" "Carusel Studio - Mac (Apple Silicon).zip"
-ditto -c -k --keepParent "$NAME-darwin-x64/$NAME.app" "Carusel Studio - Mac (Intel).zip"
+ditto -c -k --keepParent "$NAME-win32-x64" "Carusel CNF - Windows.zip"
+ditto -c -k --keepParent "$NAME-darwin-arm64/$NAME.app" "Carusel CNF - Mac (Apple Silicon).zip"
+ditto -c -k --keepParent "$NAME-darwin-x64/$NAME.app" "Carusel CNF - Mac (Intel).zip"
 ls -lh *.zip

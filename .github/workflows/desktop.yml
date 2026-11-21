@@ -27,10 +27,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd dist
-          cp "Carusel Studio - Mac (Apple Silicon).zip" CaruselStudio-Mac-AppleSilicon.zip
-          cp "Carusel Studio - Mac (Intel).zip" CaruselStudio-Mac-Intel.zip
-          cp "Carusel Studio - Windows.zip" CaruselStudio-Windows.zip
-          for f in CaruselStudio-*.zip; do
+          cp "Carusel CNF - Mac (Apple Silicon).zip" CaruselCNF-Mac-AppleSilicon.zip
+          cp "Carusel CNF - Mac (Intel).zip" CaruselCNF-Mac-Intel.zip
+          cp "Carusel CNF - Windows.zip" CaruselCNF-Windows.zip
+          for f in CaruselCNF-*.zip; do
             for try in 1 2 3 4; do
               gh release upload apps --repo "$GITHUB_REPOSITORY" --clobber "$f" && break
               [ "$try" = 4 ] && exit 1

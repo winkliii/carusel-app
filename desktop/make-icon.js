@@ -4,11 +4,15 @@ const out = process.argv[2];
 
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const crc = b => { let c = 0xFFFFFFFF; for (const x of b) c = CRC[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
-function png(w, h, rgba) {
+function png(w, h, rgba, alpha = true) {
+  if (!alpha) { const rgb = Buffer.alloc(w * h * 3); for (let i = 0; i < w * h; i++) rgba.copy(rgb, i * 3, i * 4, i * 4 + 3); return pngRaw(w, h, rgb, 3, 2); }
+  return pngRaw(w, h, rgba, 4, 6);
+}
+function pngRaw(w, h, px, bpp, type) {
   const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const cr = Buffer.alloc(4); cr.writeUInt32BE(crc(td)); return Buffer.concat([len, td, cr]); };
-  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 6;
-  const raw = Buffer.alloc((w * 4 + 1) * h);
-  for (let y = 0; y < h; y++) rgba.copy(raw, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4);
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = type;
+  const raw = Buffer.alloc((w * bpp + 1) * h);
+  for (let y = 0; y < h; y++) px.copy(raw, y * (w * bpp + 1) + 1, y * w * bpp, (y + 1) * w * bpp);
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
 // signed distance to a rounded rectangle
@@ -42,7 +46,7 @@ function draw(S, mode = 'round') {
     r += (150 - r) * hill; g += (52 - g) * hill; b += (30 - b) * hill;
     const i = (y * S + x) * 4; buf[i] = r; buf[i + 1] = g; buf[i + 2] = b; buf[i + 3] = Math.round(bgA * 255);
   }
-  return png(S, S, buf);
+  return png(S, S, buf, mode !== 'square');
 }
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'icon-1024.png'), draw(1024));

@@ -4,6 +4,8 @@ const fs = require('fs');
 const os = require('os');
 
 const SMOKE = process.env.CARUSEL_SMOKE;          // build-time self test: screenshot path
+// The saved projects live in the data folder named after the old product name; keep using it after the rename.
+if (!SMOKE) app.setPath('userData', path.join(app.getPath('appData'), 'Carusel Studio'));
 if (SMOKE) app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'carusel-smoke-')));
 
 /* The app updates itself: a newer carusel-studio.html downloaded by the in-app updater is kept in the user's data
@@ -36,7 +38,7 @@ ipcMain.handle('install', (ev, html) => {
 function createWindow() {
   const win = new BrowserWindow({
     width: 1360, height: 860, minWidth: 720, minHeight: 520,
-    backgroundColor: '#141518', title: 'Carusel Studio', autoHideMenuBar: true,
+    backgroundColor: '#141518', title: 'Carusel CNF', autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, 'preload.js') },
   });
   win.loadFile(appFile());

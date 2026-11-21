@@ -1,4 +1,4 @@
-# Carusel Studio
+# Carusel CNF
 
 Editor pentru carusele continue de Instagram: așezi poze și text pe o pânză lungă, iar aplicația o taie în cadre gata de postat. Pozele rămân pe dispozitivul tău.
 
@@ -8,10 +8,10 @@ Editor pentru carusele continue de Instagram: așezi poze și text pe o pânză 
 
 | Sistem | Fișier |
 |---|---|
-| Windows 10 / 11 | [CaruselStudio-Windows.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselStudio-Windows.zip) |
-| Mac — Apple Silicon (M1 sau mai nou) | [CaruselStudio-Mac-AppleSilicon.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselStudio-Mac-AppleSilicon.zip) |
-| Mac — Intel | [CaruselStudio-Mac-Intel.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselStudio-Mac-Intel.zip) |
-| Android | [CaruselStudio-Android.apk](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselStudio-Android.apk) |
+| Windows 10 / 11 | [CaruselCNF-Windows.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselCNF-Windows.zip) |
+| Mac — Apple Silicon (M1 sau mai nou) | [CaruselCNF-Mac-AppleSilicon.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselCNF-Mac-AppleSilicon.zip) |
+| Mac — Intel | [CaruselCNF-Mac-Intel.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselCNF-Mac-Intel.zip) |
+| Android | [CaruselCNF-Android.apk](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselCNF-Android.apk) |
 
 Aplicațiile nu sunt semnate cu certificat comercial, așa că la prima deschidere sistemul afișează un avertisment:
 
