@@ -26,14 +26,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # One release per version (tag vN). Only the two newest versions are kept; the newest complete one is "latest",
+          # which is what the download links on the page point to.
+          VERSION=$(grep -o 'const APP_VERSION = [0-9]*' index.html | grep -o '[0-9]*$')
+          TAG="v$VERSION"
           cd dist
           cp "Carusel CNF - Mac (Apple Silicon).zip" CaruselCNF-Mac-AppleSilicon.zip
           cp "Carusel CNF - Mac (Intel).zip" CaruselCNF-Mac-Intel.zip
           cp "Carusel CNF - Windows.zip" CaruselCNF-Windows.zip
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --title "Versiunea $VERSION" --notes "Instalatoarele Carusel CNF, versiunea $VERSION."
           for f in CaruselCNF-*.zip; do
             for try in 1 2 3 4; do
-              gh release upload apps --repo "$GITHUB_REPOSITORY" --clobber "$f" && break
+              gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$f" && break
               [ "$try" = 4 ] && exit 1
               sleep 5
             done
           done
+          # complete (Windows, two Macs and Android)? then it becomes the latest release and the older ones are pruned
+          N=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')
+          if [ "$N" -ge 4 ]; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease=false --latest
+            gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '[.[] | select(.tagName | test("^v[0-9]+$"))] | sort_by(.tagName | ltrimstr("v") | tonumber) | reverse | .[2:] | .[].tagName' |
+              while read -r old; do gh release delete "$old" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes; done
+          fi

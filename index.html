@@ -222,11 +222,11 @@ const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 38;                                        // bumped by publish.sh
+const APP_VERSION = 39;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
-const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
+const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/latest/download/';   // the newest complete release; only the two newest are kept
 const APPS = [
   {os:/Windows/, n:'Windows', d:'Windows 10 și 11, 64 de biți · arhivă ZIP, 110 MB', f:'CaruselCNF-Windows.zip'},
   {os:null, n:'Mac — Apple Silicon', d:'Mac cu procesor M1 sau mai nou · 93 MB', f:'CaruselCNF-Mac-AppleSilicon.zip'},

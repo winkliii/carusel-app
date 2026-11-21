@@ -8,10 +8,10 @@ Editor pentru carusele continue de Instagram: așezi poze și text pe o pânză 
 
 | Sistem | Fișier |
 |---|---|
-| Windows 10 / 11 | [CaruselCNF-Windows.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselCNF-Windows.zip) |
-| Mac — Apple Silicon (M1 sau mai nou) | [CaruselCNF-Mac-AppleSilicon.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselCNF-Mac-AppleSilicon.zip) |
-| Mac — Intel | [CaruselCNF-Mac-Intel.zip](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselCNF-Mac-Intel.zip) |
-| Android | [CaruselCNF-Android.apk](https://github.com/winkliii/carusel-app/releases/download/apps/CaruselCNF-Android.apk) |
+| Windows 10 / 11 | [CaruselCNF-Windows.zip](https://github.com/winkliii/carusel-app/releases/latest/download/CaruselCNF-Windows.zip) |
+| Mac — Apple Silicon (M1 sau mai nou) | [CaruselCNF-Mac-AppleSilicon.zip](https://github.com/winkliii/carusel-app/releases/latest/download/CaruselCNF-Mac-AppleSilicon.zip) |
+| Mac — Intel | [CaruselCNF-Mac-Intel.zip](https://github.com/winkliii/carusel-app/releases/latest/download/CaruselCNF-Mac-Intel.zip) |
+| Android | [CaruselCNF-Android.apk](https://github.com/winkliii/carusel-app/releases/latest/download/CaruselCNF-Android.apk) |
 
 Aplicațiile nu sunt semnate cu certificat comercial, așa că la prima deschidere sistemul afișează un avertisment:
 
