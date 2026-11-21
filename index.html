@@ -218,7 +218,7 @@ const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 27;                                        // bumped by publish.sh
+const APP_VERSION = 28;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -960,7 +960,11 @@ function act(a){
   if (a === 'crop') return setCrop(true);
   if (a === 'cropdone') return setCrop(false);
   if (a.startsWith('fx:')) e.fx = Object.assign({}, FX0, FX_PRESETS[+a.slice(3)][1]);
-  if (a === 'del'){ state.els.splice(i, 1); sel = null; }
+  if (a === 'del'){
+    if (e.type === 'image' && e.img && tplActive()){     // in a template only the photo goes; its cell stays, empty, with the +
+      e.img = null; Object.assign(e, {cx:.5, cy:.5, cz:1, flip:false}); if (!e.dfx) delete e.fx; cropId = null;
+    } else { state.els.splice(i, 1); sel = null; }
+  }
   if (a === 'dup'){ const c = JSON.parse(JSON.stringify(e)); c.id = uid(); c.x += 60; c.y += 60; state.els.push(c); sel = c.id; }
   if (a === 'front'){ state.els.splice(i, 1); state.els.push(e); }
   if (a === 'back'){ state.els.splice(i, 1); state.els.unshift(e); }
@@ -1392,7 +1396,7 @@ function refreshPanel(){
     ${NATIVE || DESKTOP ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="update">⟳ Caută actualizări</button></div>' : ''}
     <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor și de celelalte elemente. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor și de celelalte elemente (ține <kbd>${KEY.mod}</kbd> ca să nu se lipească). <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
   } else {
-    const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">Șterge</button></div>`;
+    const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">${e.type === 'image' && e.img && tplActive() ? 'Scoate poza' : e.type === 'image' && tplActive() ? 'Șterge celula' : 'Șterge'}</button></div>`;
     if (e.type === 'image'){
       const fx = Object.assign({}, FX0, e.fx);
       const im = e.img && images.get(e.img), up = im ? Math.max(e.w / im.w, e.h / im.h) * e.cz : 0;
