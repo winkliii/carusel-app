@@ -222,7 +222,7 @@ const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 40;                                        // bumped by publish.sh
+const APP_VERSION = 41;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -245,7 +245,7 @@ const view = {z:0.4, offX:PAD, offY:PAD};
    A photo in a template cell starts in this mode when it is clicked; Enter (or the "Gata" button) ends it, Enter again or a double click starts it. */
 let cropId = null;
 const cropping = () => { const e = cropId && cropId === sel ? getSel() : null; return e && e.type === 'image' && e.img ? e : null; };
-const autoCrop = e => { cropId = e && e.type === 'image' && e.img && tplActive() ? e.id : null; };
+const autoCrop = e => { cropId = e && e.type === 'image' && e.img && !e.free && tplActive() ? e.id : null; };
 function setCrop(on){ const e = getSel(); cropId = on && e && e.type === 'image' && e.img ? e.id : null; refreshPanel(); render(); }
 let drag = null, tap = null, lastTap = 0, pinch = null, hist = [], hi = -1;
 let proj = {id:null, name:''};                     // library entry the current work belongs to, if it was saved
@@ -388,7 +388,7 @@ function fitCost(e, id){                   // how much of photo id is lost in ce
 }
 function autoArrange(only){                // only = Set of photo ids to consider (a fresh import); all photos when omitted
   const groups = new Map(); let moved = 0;
-  for (const e of state.els) if (e.type === 'image' && e.img && (!only || only.has(e.img))){
+  for (const e of state.els) if (e.type === 'image' && e.img && !e.free && (!only || only.has(e.img))){
     const f = Math.floor((e.x + e.w / 2) / FW); if (!groups.has(f)) groups.set(f, []); groups.get(f).push(e);
   }
   for (const cells of groups.values()){
@@ -401,6 +401,32 @@ function autoArrange(only){                // only = Set of photo ids to conside
     }
   }
   return moved;
+}
+/* Dragging a photo out of its template cell: the cell is left empty and the photo becomes a loose one (free) that can go
+   anywhere. Dropped on a cell it goes into that cell (an empty one is filled; a full one swaps photos with where it came from). */
+function cellAt(x, y, skip){
+  for (let i = state.els.length - 1; i >= 0; i--){
+    const c = state.els[i]; if (c.type !== 'image' || c.free || c.id === skip) continue;
+    const [lx, ly] = world2local(c, x, y); if (Math.abs(lx) <= c.w / 2 && Math.abs(ly) <= c.h / 2) return c;
+  }
+  return null;
+}
+function detachPhoto(cell, x, y){          // returns the new loose photo, centred on x, y
+  const im = images.get(cell.img), r = im.w / im.h, w = Math.sqrt(cell.w * cell.h * r), h = w / r;
+  const e = Object.assign(newImg(cell.img, x - w / 2, y - h / 2, w, h), {free:true, flip:!!cell.flip});
+  if (cell.fx && !cell.dfx) e.fx = Object.assign({}, cell.fx);              // a filter the user chose goes with the photo
+  cell.img = null; Object.assign(cell, {cx:.5, cy:.5, cz:1, flip:false}); if (!cell.dfx) delete cell.fx;
+  state.els.push(e); return e;
+}
+function dropPhoto(e, d){                   // end of dragging a loose photo
+  const t = d.target && state.els.find(c => c.id === d.target), from = d.fromCell && state.els.find(c => c.id === d.fromCell);
+  if (!t) return;
+  const had = !!t.img;
+  movePhoto(t, e);                                                           // the cell takes the dragged photo; e now holds what the cell had
+  if (!had){ state.els.splice(state.els.indexOf(e), 1); sel = t.id; return; }
+  if (from && isSlot(from)){ movePhoto(from, e); state.els.splice(state.els.indexOf(e), 1); sel = t.id; return; }
+  Object.assign(e, {x:d.orig.x, y:d.orig.y});                               // a loose photo swapped with a cell takes the cell's photo back to where it started
+  sel = t.id;
 }
 let swapFrom = null;                       // "Schimbă cu altă poză": the photo waiting for its partner
 function swapPick(e){
@@ -729,6 +755,11 @@ function paint(){
     ctx.beginPath(); ctx.arc(pb[0], pb[1], pb[2], 0, Math.PI * 2); ctx.fillStyle = '#ff8552'; ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(pb[0] - 6, pb[1]); ctx.lineTo(pb[0] + 6, pb[1]); ctx.moveTo(pb[0], pb[1] - 6); ctx.lineTo(pb[0], pb[1] + 6); ctx.stroke(); ctx.lineCap = 'butt';
   }
+  if (drag && drag.target){                                                // the cell a dragged photo would go into
+    const t = state.els.find(c => c.id === drag.target);
+    if (t){ const c = [[-1,-1],[1,-1],[1,1],[-1,1]].map(([a, b]) => w2s(...local2world(t, a * t.w / 2, b * t.h / 2)));
+      ctx.fillStyle = 'rgba(47,143,255,.18)'; ctx.strokeStyle = CROPC; ctx.lineWidth = 3; ctx.beginPath(); c.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  }
   // snap guides
   if (drag && drag.guides){
     ctx.strokeStyle = GUIDE; ctx.lineWidth = 1;
@@ -757,7 +788,7 @@ function paint(){
     }
     // size / position badge, in export pixels
     const b = aabb(e), act = drag && drag.moved ? drag.mode : '';
-    const t = swapFrom === e.id ? 'Apasă pe poza cu care o schimbi' : crop ? (COARSE ? 'Reîncadrare: trage poza' : 'Reîncadrare: trage poza · Enter = gata') : act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px';
+    const t = swapFrom === e.id ? 'Apasă pe poza cu care o schimbi' : crop ? (COARSE ? 'Trage poza · scoasă din chenar, o muți' : 'Trage poza · scoasă din chenar, o muți · Enter = gata') : act === 'move' ? 'X ' + Math.round(b.x0) + '   Y ' + Math.round(b.y0) : act === 'rotate' ? e.rot + '°' : Math.round(e.w) + ' × ' + Math.round(e.h) + ' px';
     ctx.font = '600 11px -apple-system,"Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const bw = ctx.measureText(t).width + 14, vw = cv.width / dpr, vh = cv.height / dpr;
     const bx = clamp(w2s(b.cx, 0)[0], bw / 2 + 4, Math.max(bw / 2 + 4, vw - bw / 2 - 4)), by = clamp(w2s(0, b.y1)[1] + 20, 14, Math.max(14, vh - 14));
@@ -864,6 +895,13 @@ sc.addEventListener('pointermove', ev => {
       drag.guides = {x:guidesFor([cx - hw, cx, cx + hw], T.xs, cy - hh, cy + hh), y:guidesFor([cy - hh, cy, cy + hh], T.ys, cx - hw, cx + hw)};
     }
     e.x = nx; e.y = ny;
+    if (e.type === 'image' && e.img && e.free && tplActive()){ const t = cellAt(x, y, e.id); drag.target = t ? t.id : null; if (t) drag.guides = null; }
+  } else if (drag.mode === 'crop' && !o.free && tplActive() && (() => { const [lx, ly] = world2local(o, x, y), m = 14 / view.z; return Math.abs(lx) > o.w / 2 + m || Math.abs(ly) > o.h / 2 + m; })()){
+    Object.assign(e, {cx:o.cx, cy:o.cy});                                   // the photo leaves its cell as it was framed
+    const f = detachPhoto(e, x, y);
+    sel = f.id; cropId = null;
+    drag = {mode:'move', id:f.id, orig:JSON.parse(JSON.stringify(f)), sx:x, sy:y, moved:true, fromCell:e.id, target:null};
+    refreshPanel();
   } else if (drag.mode === 'crop'){
     const im = images.get(o.img), s = Math.max(o.w / im.w, o.h / im.h) * o.cz;
     const a = -o.rot * Math.PI / 180, dx = x - drag.sx, dy = y - drag.sy;
@@ -909,6 +947,7 @@ sc.addEventListener('pointermove', ev => {
 function endDrag(){
   if (!drag) return;
   const d = drag, moved = d.moved; drag = null;
+  if (moved && d.mode === 'move'){ const e = state.els.find(x => x.id === d.id); if (e && e.free) dropPhoto(e, d); }
   if (moved){ commit(); refreshPanel(); }
   else if (d.mode === 'move'){ const e = getSel(); if (e && isSlot(e)) pickImage(e.id); }   // a click on an empty cell (the +) opens the photo picker at once
   render();
@@ -1036,7 +1075,7 @@ function act(a){
   if (a === 'cropdone') return setCrop(false);
   if (a.startsWith('fx:')) e.fx = Object.assign({}, FX0, FX_PRESETS[+a.slice(3)][1]);
   if (a === 'del'){
-    if (e.type === 'image' && e.img && tplActive()){     // in a template only the photo goes; its cell stays, empty, with the +
+    if (e.type === 'image' && e.img && !e.free && tplActive()){     // in a template only the photo goes; its cell stays, empty, with the +
       e.img = null; Object.assign(e, {cx:.5, cy:.5, cz:1, flip:false}); if (!e.dfx) delete e.fx; cropId = null;
     } else { state.els.splice(i, 1); sel = null; }
   }
@@ -1139,13 +1178,13 @@ function collageRects(T, frames, g){
   return rects;
 }
 const byPos = (cx1, y1, cx2, y2) => Math.abs(cx1 - cx2) > 1 ? cx1 - cx2 : y1 - y2;   // left to right, then top to bottom
-const photosInOrder = () => state.els.filter(e => e.type === 'image' && e.img).sort((p, q) => byPos(p.x + p.w / 2, p.y, q.x + q.w / 2, q.y));
+const photosInOrder = () => state.els.filter(e => e.type === 'image' && e.img && !e.free).sort((p, q) => byPos(p.x + p.w / 2, p.y, q.x + q.w / 2, q.y));
 /* live = spacing slider is moving (no history entry); trim = remove cells that stay empty.
    Photos beyond the template's capacity are removed, so callers ask the user first (chooseTemplate, addFiles, setFrames). */
 function collage(i, live, trim){
   const T = COLLAGES[i], rad = state.rad ?? 0, rects = collageRects(T, state.frames, state.gap ?? 30);
   rects.sort((p, q) => byPos(p[0] + p[2] / 2, p[1], q[0] + q[2] / 2, q[1]));
-  const imgs = photosInOrder(), rest = state.els.filter(e => e.type !== 'image' && !e.d);
+  const imgs = photosInOrder(), rest = state.els.filter(e => (e.type !== 'image' && !e.d) || e.free);
   if (state.des != null){ imgs.forEach(e => tplFx(Object.assign(e, {frame:'none', mask:'rect', shadow:false, border:0}))); state.des = null; }
   let cells = rects.map((r, k) => Object.assign(imgs[k] || newImg(null, 0, 0, 1, 1), {x:r[0], y:r[1], w:r[2], h:r[3], rot:0, radius:rad}));
   if (trim) cells = cells.filter(e => e.img);
@@ -1156,7 +1195,7 @@ function collage(i, live, trim){
 }
 
 /* ---------- template capacity: keeping photos and cells in step ---------- */
-const photoCount = () => state.els.filter(e => e.type === 'image' && e.img).length;
+const photoCount = () => state.els.filter(e => e.type === 'image' && e.img && !e.free).length;   // photos in cells; photos dragged out of the template do not count
 const pl = (n, one, many) => n + ' ' + (n === 1 ? one : (n % 100 >= 20 || n % 100 === 0 ? 'de ' : '') + many);   // Romanian plural: 1 loc, 5 locuri, 20 de locuri
 const tplActive = () => state.tpl != null ? ['col', state.tpl] : state.des != null && DES(state.des) ? ['des', state.des] : null;
 function designCells(D, frames){
@@ -1388,7 +1427,7 @@ function designEls(D, frames, imgs, trim, edited){        // the elements templa
 const designBg = D => D.bg.length > 1 ? {type:'grad', c1:D.bg[0], c2:D.bg[1], angle:D.bg[2]} : Object.assign({}, state.bg, {type:'solid', c1:D.bg[0]});
 function design(i, trim){
   const D = DES(i); if (!D) return;
-  const own = state.els.filter(e => e.type !== 'image' && !e.d);     // the user's own text and shapes stay
+  const own = state.els.filter(e => (e.type !== 'image' && !e.d) || e.free);     // the user's own text, shapes and loose photos stay
   const edited = {}; if (state.des === i) state.els.forEach(e => { if (e.d === 2 && e.dk) edited[e.dk] = e; });   // template text/shapes the user changed are kept as they are
   const out = designEls(D, state.frames, photosInOrder(), trim, edited);
   state.els = [...out, ...own];                                        // photos beyond the template's capacity are dropped; callers ask first
@@ -1517,7 +1556,7 @@ function refreshPanel(){
       const fx = Object.assign({}, FX0, e.fx);
       const im = e.img && images.get(e.img), up = im ? Math.max(e.w / im.w, e.h / im.h) * e.cz : 0;
       h += `<h3>Imagine</h3><div class="tip" style="margin:0 0 8px">Pe pânză: <b>${Math.round(e.w)} × ${Math.round(e.h)} px</b>${im ? `<br>Poza originală: ${im.w} × ${im.h} px${up > 1.25 ? '<br>⚠︎ Poza e mărită peste rezoluția ei și poate ieși neclară.' : ''}` : ''}</div>
-      ${e.img ? (cropping() ? `<div class="row"><button class="btn primary" style="flex:1" data-act="cropdone">✓ Gata cu reîncadrarea</button></div><div class="tip" style="margin:0 0 8px">Trage poza ca să alegi ce se vede în chenar${COARSE ? '' : '; rotița mouse-ului mărește'}. După „Gata”${COARSE ? '' : ' (sau <kbd>Enter</kbd>)'} poți muta și redimensiona chenarul.</div>` : `<div class="row"><button class="btn" style="flex:1" data-act="crop">⛶ Reîncadrează poza</button></div>`) : ''}
+      ${e.img ? (cropping() ? `<div class="row"><button class="btn primary" style="flex:1" data-act="cropdone">✓ Gata cu reîncadrarea</button></div><div class="tip" style="margin:0 0 8px">Trage poza ca să alegi ce se vede în chenar${COARSE ? '' : '; rotița mouse-ului mărește'}. Dacă o tragi afară din chenar, o muți unde vrei, iar pusă peste altă celulă, intră în ea. După „Gata”${COARSE ? '' : ' (sau <kbd>Enter</kbd>)'} poți muta și redimensiona chenarul.</div>` : `<div class="row"><button class="btn" style="flex:1" data-act="crop">⛶ Reîncadrează poza</button></div>`) : ''}
       ${e.img && state.els.filter(x => x.type === 'image').length > 1 ? `<div class="row"><button class="btn ${swapFrom === e.id ? 'on' : ''}" style="flex:1" data-act="swap">⇄ Schimbă cu altă poză</button></div>` : ''}<div class="grid2"><button class="btn" data-act="fill">Umple cadrul</button><button class="btn" data-act="fillall">Umple tot</button><button class="btn" data-act="flip">Oglindește</button><button class="btn" data-act="pick">${e.img ? 'Schimbă poza' : 'Alege poza'}</button></div>
       <h3>Decupaj</h3>${rng('Zoom', 'cz', 1, 4, 0.01, e.cz)}${rng('Orizontal', 'cx', 0, 1, 0.005, e.cx)}${rng('Vertical', 'cy', 0, 1, 0.005, e.cy)}
       <h3>Filtru</h3><div class="seg chips">${FX_PRESETS.map(([n, v], i) => `<button class="btn ${JSON.stringify(Object.assign({}, FX0, v)) === JSON.stringify(fx) ? 'on' : ''}" data-act="fx:${i}">${n}</button>`).join('')}</div>
