@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Carusel CNF</title>
+<title>Carusel Studio</title>
 <style>
 :root{
   --bg:#141518; --panel:#1c1e22; --panel2:#24272c; --line:#33373e; --text:#e9eaec; --muted:#9aa0a8;
@@ -114,7 +114,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
 </head>
 <body>
 <header>
-  <div class="brand">Carusel <span>CNF</span></div>
+  <div class="brand">Carusel<span>Studio</span></div>
   <button class="btn" id="bNew" title="Proiect nou"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 1.5h5l3.5 3.5v9.5h-8.500z"/><path d="M9 1.5v3.500h3.500"/></svg><span class="lbl"> Nou</span></button>
   <button class="btn" id="bLib" title="Proiecte salvate"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" style="vertical-align:-2px"><path d="M1.500 4v8.500h13V5.500H8L6.500 3.500h-5z"/></svg><span class="lbl"> Proiecte</span></button>
   <button class="btn" id="bAdd">＋<span class="lbl"> Imagini</span></button>
@@ -151,7 +151,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <div class="row"><label>Împachetare</label><select id="dlZip"><option value="1">Un singur fișier ZIP</option><option value="0">Fișiere separate</option></select></div>
   <h3>Video cu derulare automată</h3>
   <div class="row"><label>Viteză</label><select id="dlSpeed"><option value="2.4">Lentă</option><option value="1.6" selected>Normală</option><option value="1">Rapidă</option></select></div>
-  <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" data-close>Renunță</button><button class="btn" id="dlShare" style="display:none">Partajează</button><button class="btn" id="dlVideo">Salvează ca video</button><button class="btn primary" id="dlGo" autofocus>Descarcă</button></div>
+  <div class="dlgbtns" style="flex-wrap:wrap"><button class="btn" data-close>Renunță</button><button class="btn" id="dlVideo">Salvează ca video</button><button class="btn primary" id="dlGo" autofocus>Descarcă</button></div>
   <div class="tip fb" style="text-align:center"><a href="#" data-fb>Spune-ne părerea ta despre aplicație</a></div>
 </dialog>
 
@@ -196,7 +196,7 @@ dialog h2{margin:0 0 12px;font-size:16px}
   <div class="tpl" id="appList"></div>
   <div class="tip">
     <b>Mac:</b> la prima deschidere, Configurări sistem → Intimitate și securitate → „Deschide oricum”.<br>
-    <b>Windows:</b> dezarhivează, pornește <i>Carusel CNF.exe</i>; la avertisment: „Mai multe informații” → „Rulare oricum”.<br>
+    <b>Windows:</b> dezarhivează, pornește <i>Carusel Studio.exe</i>; la avertisment: „Mai multe informații” → „Rulare oricum”.<br>
     <b>Android:</b> deschide fișierul și permite instalarea din această sursă.<br>
     <b>iPhone:</b> nu există fișier de descărcat; folosește această pagină în Safari.
   </div>
@@ -220,21 +220,20 @@ const FORMATS = {'4:5':1350, '3:4':1440, '1:1':1080, '9:16':1920};
 const ALL_FONTS = ['Arial','Helvetica Neue','Segoe UI','Avenir Next','Calibri','Futura','Gill Sans','Verdana','Tahoma','Trebuchet MS','Bahnschrift','Georgia','Times New Roman','Cambria','Constantia','Palatino Linotype','Garamond','Didot','Baskerville','Courier New','Consolas','Impact','Comic Sans MS','Snell Roundhand','Segoe Script','Bradley Hand','Segoe Print','Ink Free','Marker Felt'];
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
-const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 39;                                        // bumped by publish.sh
+const APP_VERSION = 38;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
-const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/latest/download/';   // the newest complete release; only the two newest are kept
+const APP_FILES = 'https://github.com/winkliii/carusel-app/releases/download/apps/';
 const APPS = [
-  {os:/Windows/, n:'Windows', d:'Windows 10 și 11, 64 de biți · arhivă ZIP, 110 MB', f:'CaruselCNF-Windows.zip'},
-  {os:null, n:'Mac — Apple Silicon', d:'Mac cu procesor M1 sau mai nou · 93 MB', f:'CaruselCNF-Mac-AppleSilicon.zip'},
-  {os:null, n:'Mac — Intel', d:'Mac mai vechi, cu procesor Intel · 100 MB', f:'CaruselCNF-Mac-Intel.zip'},
-  {os:/Android/, n:'Android', d:'Fișier APK pentru telefon sau tabletă · 4 MB', f:'CaruselCNF-Android.apk'},
+  {os:/Windows/, n:'Windows', d:'Windows 10 și 11, 64 de biți · arhivă ZIP, 110 MB', f:'CaruselStudio-Windows.zip'},
+  {os:null, n:'Mac — Apple Silicon', d:'Mac cu procesor M1 sau mai nou · 93 MB', f:'CaruselStudio-Mac-AppleSilicon.zip'},
+  {os:null, n:'Mac — Intel', d:'Mac mai vechi, cu procesor Intel · 100 MB', f:'CaruselStudio-Mac-Intel.zip'},
+  {os:/Android/, n:'Android', d:'Fișier APK pentru telefon sau tabletă · 4 MB', f:'CaruselStudio-Android.apk'},
 ];
 const FEEDBACK_URL = 'https://forms.gle/zvnxs7m3vAgKuXjz9';   // Google Form for feedback; the button is hidden when this is empty
-const DL_LABEL = ANDROID ? 'Salvează în galerie' : NATIVE ? 'Salvează / Partajează' : 'Descarcă';
+const DL_LABEL = NATIVE ? 'Salvează / Partajează' : 'Descarcă';
 const KEY = IS_MAC ? {mod:'⌘', alt:'⌥', shift:'⇧'} : {mod:'Ctrl', alt:'Alt', shift:'Shift'};
 const fresh = () => ({format:'4:5', frames:1, bg:{type:'solid', c1:'#ffffff', c2:'#f1d9c4', angle:0}, gap:30, rad:0, tpl:null, els:[]});
 let state = fresh();
@@ -289,7 +288,7 @@ function db(){
 function scheduleSave(){ clearTimeout(scheduleSave.t); scheduleSave.t = setTimeout(saveLocal, 700); }
 async function saveLocal(){
   try{
-    const used = new Set([...state.els.map(e => e.img), state.bg.img].filter(Boolean));
+    const used = new Set(state.els.map(e => e.img).filter(Boolean));
     const imgs = [...images].filter(([id]) => used.has(id)).map(([id, v]) => ({id, blob:v.blob}));
     const d = await db(); d.transaction('kv', 'readwrite').objectStore('kv').put({state:JSON.stringify(state), imgs, proj}, 'project');
   }catch(e){}
@@ -326,11 +325,7 @@ function pickImage(id){ pickFor = id; $('fImg').click(); }
 async function addFiles(files, at){
   const target = pickFor; pickFor = null;
   const list = [...files].filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif|heic)$/i.test(f.name || ''));
-  if (!list.length){ if (target === 'bg' && state.bg.type === 'image' && !state.bg.img){ state.bg.type = 'solid'; refreshPanel(); } return; }
-  if (target === 'bg'){                                   // the chosen photo becomes the background, not a layer
-    try{ state.bg = Object.assign({}, state.bg, {type:'image', img:await addBlob(list[0])}); }catch(e){ toast('Poza nu a putut fi citită'); if (!state.bg.img) state.bg.type = 'solid'; }
-    commit(); refreshPanel(); render(); return;
-  }
+  if (!list.length) return;
   if (list.length > 1) list.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, {numeric:true}));   // in shooting order, as the files are numbered
   const ids = []; let bad = 0, last = null;
   for (const f of list){ try{ ids.push(await addBlob(f)); }catch(e){ bad++; } }
@@ -537,31 +532,19 @@ function dropFullFx(){ for (const k of [...fxCache.keys()]) if (k.endsWith('F'))
    mode 0 = editor (shows empty cells), 1 = final export (full-size photos), 2 = preview/video (export look, lighter photos) */
 function drawScene(c, mode, scale){
   const w = W(), h = H(), b = state.bg;
-  if (b.type === 'solid' || b.type === 'image') c.fillStyle = b.c1;
+  if (b.type === 'solid') c.fillStyle = b.c1;
   else{
     const a = b.angle * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a), L = Math.abs(w * dx) + Math.abs(h * dy);
     const g = c.createLinearGradient(w / 2 - dx * L / 2, h / 2 - dy * L / 2, w / 2 + dx * L / 2, h / 2 + dy * L / 2);
     g.addColorStop(0, b.c1); g.addColorStop(1, b.c2); c.fillStyle = g;
   }
   c.fillRect(0, 0, w, h);
-  if (b.type === 'image') drawBgPhoto(c, b, mode, w, h);
   for (const e of state.els){
     c.save();
     c.translate(e.x + e.w / 2, e.y + e.h / 2); c.rotate(e.rot * Math.PI / 180); c.globalAlpha = e.opacity;
     if (e.type === 'image') drawImageEl(c, e, mode, scale); else if (e.type === 'shape') drawShapeEl(c, e, scale); else drawTextEl(c, e, scale);
     c.restore();
   }
-}
-function coverDraw(c, src, sw0, sh0, dx, dy, dw, dh, fx){      // draw src filling the dw x dh box, cropping the overflow
-  const k = (src.naturalWidth || src.width) / sw0, s = Math.max(dw / sw0, dh / sh0), sw = dw / s, sh = dh / s;
-  c.drawImage(src, (sw0 - sw) * fx * k, (sh0 - sh) * .5 * k, sw * k, sh * k, dx, dy, dw, dh);
-}
-function drawBgPhoto(c, b, mode, w, h){
-  const im = images.get(b.img); if (!im) return;
-  const src = mode === 1 ? im.full : im.prev; c.imageSmoothingQuality = 'high';
-  if ((b.mode || 'span') === 'each') for (let i = 0; i < state.frames; i++) coverDraw(c, src, im.w, im.h, i * FW, 0, FW, h, .5);
-  else coverDraw(c, src, im.w, im.h, 0, 0, w, h, b.fx == null ? .5 : b.fx);
-  const d = b.dim || 0; if (d){ c.fillStyle = d > 0 ? 'rgba(255,255,255,' + d / 100 + ')' : 'rgba(0,0,0,' + -d / 100 + ')'; c.fillRect(0, 0, w, h); }
 }
 function dropShadow(c, scale){ c.shadowColor = 'rgba(0,0,0,.38)'; c.shadowBlur = 46 * scale; c.shadowOffsetY = 18 * scale; }
 function drawImageEl(c, e, mode, scale){
@@ -668,6 +651,31 @@ function handlesOf(e){
   hs.push({rot:true, s:w2s(...local2world(e, 0, -e.h / 2 - 30 / view.z))});
   return hs;
 }
+/* ---------- deleting an empty frame ----------
+   A click on bare canvas picks that frame; if nothing is on it (in a template: only empty cells and the template's own
+   decorations), Backspace / Delete or the panel button removes it and the frames after it move one place to the left. */
+let curFrame = null;
+function setFrameSel(f){ if (f === curFrame) return; curFrame = f; refreshPanel(); render(); }
+const frameEls = i => state.els.filter(e => { const b = aabb(e); return b.x1 > i * FW + 2 && b.x0 < (i + 1) * FW - 2; });
+const frameEmpty = i => i != null && i < state.frames && frameEls(i).every(e => tplActive() && (isSlot(e) || e.d === 1));
+const emptyFrameSel = () => { const e = getSel(); return state.frames > 1 && (!e || isSlot(e) || e.d === 1) && frameEmpty(curFrame) ? curFrame : null; };   // bare canvas, or an empty cell, on an empty frame
+function deleteFrame(i){
+  if (i == null || !frameEmpty(i)) return;
+  if (state.frames <= 1) return toast('Caruselul are un singur cadru.');
+  const x0 = i * FW, x1 = x0 + FW, m = v => v <= x0 ? v : v >= x1 ? v - FW : x0, tp = tplActive();
+  state.els = state.els.filter(e => {
+    const b = aabb(e), cx = (b.x0 + b.x1) / 2;
+    if (b.x1 <= x0 + 2) return true;                                     // before the frame: stays
+    if (b.x0 >= x1 - 2){ e.x -= FW; return true; }                        // after it: one frame to the left
+    if (e.type === 'text' || e.rot){ if (cx > x0 && cx < x1) return false; if (cx >= x1) e.x -= FW; return true; }
+    const l = m(e.x), r = m(e.x + e.w); if (r - l < 24) return false;   // wholly on the frame: goes; reaching into it: trimmed
+    e.x = l; e.w = r - l; return true;
+  });
+  state.frames--;
+  if (tp && (tp[0] === 'col' ? COLLAGES[tp[1]] : DES(tp[1])).p !== 1){ state.tpl = null; state.des = null; }   // a pattern over several frames no longer lines up
+  curFrame = null; commit(); fit(); refreshPanel();
+  toast('Cadrul ' + (i + 1) + ' a fost șters. „↶” îl aduce înapoi.');
+}
 function plusBtn(){                        // the round + after the last frame: [x, y, radius] on screen, or null when no more frames fit
   if (state.frames >= MAXF) return null;
   const [x, y] = w2s(W(), H() / 2); return [x + 22, y, 15];
@@ -690,6 +698,15 @@ function paint(){
     if (i < state.frames){ ctx.fillStyle = '#7d838c'; ctx.fillText(String(i + 1), tx + (i + .5) * FW * z, ty - 10); }
   }
   ctx.setLineDash([]);
+  const ef = emptyFrameSel();
+  if (ef != null && !drag){
+    const fx = Math.round(tx + ef * FW * z), fw = Math.round(FW * z), t = COARSE ? 'Cadru gol · îl ștergi din panou' : 'Cadru gol · Backspace = șterge';
+    ctx.setLineDash([7, 5]); ctx.strokeStyle = '#ff8552'; ctx.lineWidth = 2; ctx.strokeRect(fx + 2, ty + 2, fw - 4, h * z - 4); ctx.setLineDash([]);
+    ctx.font = '600 11px -apple-system,"Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const bw = ctx.measureText(t).width + 14, bx = fx + fw / 2, by = ty + h * z / 2;
+    ctx.fillStyle = '#ff8552'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx - bw / 2, by - 10, bw, 20, 5); else ctx.rect(bx - bw / 2, by - 10, bw, 20); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(t, bx, by + .5);
+  }
   const pb = plusBtn();
   if (pb){
     ctx.beginPath(); ctx.arc(pb[0], pb[1], pb[2], 0, Math.PI * 2); ctx.fillStyle = '#ff8552'; ctx.fill();
@@ -795,6 +812,7 @@ sc.addEventListener('pointerdown', ev => {
     drag = {mode: hd.rot ? 'rotate' : 'resize', hx:hd.hx, hy:hd.hy, id:e.id, orig:JSON.parse(JSON.stringify(e)), moved:false};
   } else {
     const e = hitTest(x, y);
+    setFrameSel(x >= 0 && x < W() && y >= 0 && y < H() ? Math.floor(x / FW) : null);
     if (ev.pointerType === 'touch' && (!e || e.id !== sel)){ tap = {x:ev.clientX, y:ev.clientY, id:e ? e.id : null}; return; }   // touch: tap selects, dragging pans the canvas
     if (e){
       const wasSel = sel === e.id;
@@ -947,6 +965,8 @@ window.addEventListener('keydown', ev => {
   if (mod && (k === '=' || k === '+')){ ev.preventDefault(); setZoom(view.z * 1.25); return; }
   if (mod && k === '-'){ ev.preventDefault(); setZoom(view.z / 1.25); return; }
   if (mod && k === '0'){ ev.preventDefault(); fit(); return; }
+  if ((k === 'backspace' || k === 'delete') && emptyFrameSel() != null){ ev.preventDefault(); sel = null; return deleteFrame(curFrame); }
+  if (!e && k === 'escape' && curFrame != null) return setFrameSel(null);
   if (!e) return;
   const cr = cropping();
   if (k === 'enter' && e.type === 'image' && e.img){ ev.preventDefault(); return setCrop(!cr); }
@@ -977,14 +997,14 @@ function act(a){
   if (a.startsWith('col:')){ const k = +a.slice(4); if (COLLAGES[k].g != null) state.gap = COLLAGES[k].g; return chooseTemplate('col', k); }
   if (a === 'des:none') return clearTemplate();
   if (a.startsWith('des:')){ const k = a.slice(4); return chooseTemplate('des', /^\d+$/.test(k) ? +k : k); }
+  if (a.startsWith('txt:')) return addText(TEXT_STYLES[+a.slice(4)].o);
+  if (a === 'delframe'){ const f = emptyFrameSel(); sel = null; return deleteFrame(f); }
   if (a === 'moredes'){ openSec.des = !openSec.des; return refreshPanel(); }
   if (a === 'utsave') return utplAsk();
   if (a === 'arrange'){ const n = autoArrange(); if (n){ commit(); render(); } return toast(n ? 'Pozele au fost reașezate după forma celulelor.' : 'Pozele sunt deja în celulele care li se potrivesc cel mai bine.'); }
   if (a.startsWith('utdel:')) return utplDelete(a.slice(6));
   if (a.startsWith('fn:')) return setFrames(+a.slice(3));
   if (a === 'getapp') return $('dlgApp').showModal();
-  if (a === 'bgpick') return pickImage('bg');
-  if (a === 'bgclear'){ state.bg = Object.assign({}, state.bg, {type:'solid', img:null}); commit(); refreshPanel(); render(); return; }
   if (a === 'update') return checkUpdate(true);
   if (a === 'feedback') return void window.open(FEEDBACK_URL, '_blank');
   if (a === 'save') return quickSave();
@@ -1353,7 +1373,7 @@ function design(i, trim){
   const edited = {}; if (state.des === i) state.els.forEach(e => { if (e.d === 2 && e.dk) edited[e.dk] = e; });   // template text/shapes the user changed are kept as they are
   const out = designEls(D, state.frames, photosInOrder(), trim, edited);
   state.els = [...out, ...own];                                        // photos beyond the template's capacity are dropped; callers ask first
-  if (!(state.bg.type === 'image' && state.bg.img)) state.bg = designBg(D);   // a photo background chosen by the user stays
+  state.bg = designBg(D);
   state.tpl = null; state.des = i; if (!getSel()) sel = null;
   commit(); fit(); refreshPanel();
 }
@@ -1434,6 +1454,7 @@ function refreshPanel(){
     h += `<h3>Format</h3><div class="seg">${Object.keys(FORMATS).map(f => `<button class="btn ${f === state.format ? 'on' : ''}" data-act="fmt:${f}">${f}</button>`).join('')}</div>
     <h3>Cadre (slide-uri)</h3><div class="row"><button class="btn icon" data-act="f-">−</button><div style="flex:1;text-align:center;font-size:16px;font-weight:600">${state.frames}</div><button class="btn icon" data-act="f+">＋</button></div>
     <div class="seg">${[3, 5, 10, 20].map(n => `<button class="btn ${state.frames === n ? 'on' : ''}" data-act="fn:${n}">${n}</button>`).join('')}</div>
+    ${emptyFrameSel() != null ? `<div class="row"><button class="btn danger" style="flex:1" data-act="delframe">Șterge cadrul ${curFrame + 1} (e gol)</button></div>` : ''}
     ${tplActive() && photoCount() > 1 ? '<div class="row"><button class="btn" style="flex:1" data-act="arrange">✦ Aranjează automat pozele</button></div><div class="tip" style="margin:0 0 4px">Păstrează ordinea de la un cadru la altul și pune fiecare poză în celula care i se potrivește ca formă, ca să se taie cât mai puțin din ea.</div>' : ''}
     <h3>Șabloane moderne (${DESIGNS.length})</h3>
     <div class="cgrid">${(allDes ? DSHOW : DSHOW.slice(0, 6)).map(i => `<button class="btn ${state.des === i ? 'on' : ''}" data-act="des:${i}">${dthumb(DESIGNS[i])}${DESIGNS[i].n}</button>`).join('')}</div>
@@ -1455,13 +1476,13 @@ function refreshPanel(){
       <button class="btn" data-act="tpl:two">Două rânduri<small>Două benzi suprapuse</small></button>
     </div>
     </details>
+    <h3>Text</h3>
+    <div class="grid2">${TEXT_STYLES.map((t, i) => `<button class="btn" data-act="txt:${i}" style="${t.o.bold ? 'font-weight:700;' : ''}${t.o.italic ? 'font-style:italic;' : ''}">${t.n}</button>`).join('')}</div>
+    <div class="tip" style="margin:0 0 4px">Textul apare în mijlocul ecranului; ${COARSE ? 'atinge-l' : 'dă click pe el'} ca să-i schimbi cuvintele, fontul și culoarea.</div>
     <h3>Fundal</h3>
-    <div class="row"><label>Tip</label><select data-o="bg" data-k="type"><option value="solid" ${b.type === 'solid' ? 'selected' : ''}>Culoare simplă</option><option value="grad" ${b.type === 'grad' ? 'selected' : ''}>Gradient</option><option value="image" ${b.type === 'image' ? 'selected' : ''}>Poză</option></select></div>
+    <div class="row"><label>Tip</label><select data-o="bg" data-k="type"><option value="solid" ${b.type === 'solid' ? 'selected' : ''}>Culoare simplă</option><option value="grad" ${b.type === 'grad' ? 'selected' : ''}>Gradient</option></select></div>
     <div class="row"><label>Culoare</label><input type="color" data-o="bg" data-k="c1" value="${b.c1}">${b.type === 'grad' ? `<input type="color" data-o="bg" data-k="c2" value="${b.c2}">` : ''}</div>
     ${b.type === 'grad' ? rng('Unghi', 'angle', 0, 360, 1, b.angle, 'bg') : ''}
-    ${b.type === 'image' ? `<div class="grid2"><button class="btn" data-act="bgpick">${b.img ? 'Schimbă poza' : 'Alege poza'}</button><button class="btn danger" data-act="bgclear">Scoate poza</button></div>
-      <div class="row"><label>Aranjare</label><select data-o="bg" data-k="mode"><option value="span" ${(b.mode || 'span') === 'span' ? 'selected' : ''}>Întinsă peste toate cadrele</option><option value="each" ${b.mode === 'each' ? 'selected' : ''}>Aceeași poză pe fiecare cadru</option></select></div>
-      ${(b.mode || 'span') === 'span' ? rng('Poziție', 'fx', 0, 1, 0.01, b.fx == null ? .5 : b.fx, 'bg') : ''}${rng('Întunecă ↔ luminează', 'dim', -80, 80, 1, b.dim || 0, 'bg')}` : ''}
     <h3>Proiect${proj.name ? ' · ' + esc(proj.name) : ''}</h3><div class="grid2"><button class="btn" data-act="save">Salvează</button><button class="btn" data-act="lib">Proiecte…</button></div>
     <div class="row"><button class="btn danger" style="flex:1" data-act="new">Proiect nou</button></div>
     ${FEEDBACK_URL ? '<h3>Părerea ta</h3><div class="row"><button class="btn" style="flex:1" data-act="feedback">Trimite feedback…</button></div>' : ''}
@@ -1469,7 +1490,7 @@ function refreshPanel(){
     ${NATIVE || DESKTOP ? '<h3>Aplicație</h3><div class="row"><button class="btn" style="flex:1" data-act="update">⟳ Caută actualizări</button></div>' : ''}
     <div class="tip">${COARSE ? 'Atinge un element ca să-l selectezi, apoi trage-l; se lipește de marginile cadrelor și de celelalte elemente. Trage pe restul pânzei ca să derulezi, cu două degete faci zoom. Lucrul se salvează automat.' : `Glisează elementele; se lipesc de marginile cadrelor și de celelalte elemente (ține <kbd>${KEY.mod}</kbd> ca să nu se lipească). <kbd>${KEY.alt}</kbd>+glisare mută imaginea în interiorul decupajului. <kbd>${KEY.shift}</kbd> la colț = redimensionare liberă. <kbd>${KEY.mod}</kbd>+scroll = zoom. Lucrul se salvează automat.`}<br>Versiunea ${APP_VERSION}</div>`;
   } else {
-    const common = `<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">${e.type === 'image' && e.img && tplActive() ? 'Scoate poza' : e.type === 'image' && tplActive() ? 'Șterge celula' : 'Șterge'}</button></div>`;
+    const common = `${emptyFrameSel() != null ? `<div class="row"><button class="btn danger" style="flex:1" data-act="delframe">Șterge cadrul ${curFrame + 1} (e gol)</button></div>` : ''}<div class="grid2"><button class="btn" data-act="front">În față</button><button class="btn" data-act="back">În spate</button><button class="btn" data-act="dup">Duplică</button><button class="btn danger" data-act="del">${e.type === 'image' && e.img && tplActive() ? 'Scoate poza' : e.type === 'image' && tplActive() ? 'Șterge celula' : 'Șterge'}</button></div>`;
     if (e.type === 'image'){
       const fx = Object.assign({}, FX0, e.fx);
       const im = e.img && images.get(e.img), up = im ? Math.max(e.w / im.w, e.h / im.h) * e.cz : 0;
@@ -1520,8 +1541,7 @@ panel.addEventListener('input', ev => {
 panel.addEventListener('change', ev => {
   if (!ev.target.dataset.k) return;
   if (fxLow){ fxLow = false; render(); }
-  commit(); if (['type', 'kind', 'mode'].includes(ev.target.dataset.k) || ev.target.dataset.o === 'fx') refreshPanel();
-  if (ev.target.dataset.o === 'bg' && ev.target.dataset.k === 'type' && ev.target.value === 'image' && !state.bg.img) pickImage('bg');   // choosing "Poză" opens the picker right away
+  commit(); if (['type', 'kind'].includes(ev.target.dataset.k) || ev.target.dataset.o === 'fx') refreshPanel();
 });
 panel.addEventListener('click', ev => { const b = ev.target.closest('[data-act]'); if (b) act(b.dataset.act); });
 panel.addEventListener('dblclick', ev => {                 // double click on a slider (or its label): back to the starting value
@@ -1571,39 +1591,18 @@ async function nativeShare(items, title){            // phone app: hand the file
   }
   await Share.share({title, files});
 }
-const GALLERY_ALBUM = 'Carusel CNF';
-async function androidGallery(items){     // saves into a "Carusel CNF" album that shows up in Samsung Gallery / Google Photos
-  const M = Capacitor.Plugins && Capacitor.Plugins.Media; if (!M) throw new Error('plugin lipsă');
-  const find = async () => ((await M.getAlbums()).albums || []).find(a => a.name === GALLERY_ALBUM);
-  let alb = await find();
-  if (!alb){ await M.createAlbum({name:GALLERY_ALBUM}); alb = await find(); }
-  if (!alb) throw new Error('albumul nu a putut fi creat');
-  for (const it of items){
-    const o = {path:await blob2url(it.blob), albumIdentifier:alb.identifier, fileName:it.name.replace(/\.[^.]+$/, '')};
-    if (it.blob.type.startsWith('video')) await M.saveVideo(o); else await M.savePhoto(o);
-  }
-}
-async function saveOrShare(items, title){
-  if (ANDROID){
-    try{ await androidGallery(items); toast('Salvat în galerie, în albumul „' + GALLERY_ALBUM + '”'); return; }           // 1) MediaStore plugin: shows up in the gallery at once
-    catch(e){
-      try{ await saveToGallery(items); toast('Salvat în galerie, în albumul „' + GALLERY_ALBUM + '”'); return; }          // 2) older app without the plugin: write into Pictures
-      catch(e2){ toast('Nu s-a putut salva direct în galerie. Se deschide partajarea.'); }                                  // 3) the share sheet
-    }
-  }
-  await nativeShare(items, title);
-}
 /* Android: write the pictures straight into the phone's Pictures folder, where the gallery shows them. This needs no extra
    permission on Android 11 and newer; on older phones the write is refused and the caller falls back to the share sheet. */
+const ANDROID = NATIVE && Capacitor.getPlatform && Capacitor.getPlatform() === 'android';
 async function saveToGallery(items){
   const {Filesystem} = Capacitor.Plugins, d = new Date(), z = n => String(n).padStart(2, '0');
   const stamp = d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds());
   for (const it of items){
     const data = (await blob2url(it.blob)).split(',')[1];
-    await Filesystem.writeFile({path:'Pictures/Carusel CNF/' + it.name.replace(/^carusel/, 'carusel-' + stamp), data, directory:'EXTERNAL_STORAGE', recursive:true});
+    await Filesystem.writeFile({path:'Pictures/Carusel Studio/' + it.name.replace(/^carusel/, 'carusel-' + stamp), data, directory:'EXTERNAL_STORAGE', recursive:true});
   }
 }
-async function download(share){
+async function download(){
   const type = $('dlType').value, q = parseFloat($('dlQ').value), k = parseInt($('dlK').value), zip = $('dlZip').value === '1', ext = type === 'image/png' ? 'png' : 'jpg';
   const btn = $('dlGo'); btn.disabled = true;
   try{
@@ -1612,7 +1611,12 @@ async function download(share){
       btn.textContent = `Se generează ${i + 1}/${state.frames}…`;
       items.push({name:`carusel-${String(i + 1).padStart(2, '0')}.${ext}`, blob:await renderFrame(i, k, type, q)});
     }
-    if (NATIVE){ $('dlgDl').close(); await (share === true ? nativeShare(items, 'Carusel') : saveOrShare(items, 'Carusel')); }
+    if (ANDROID){
+      $('dlgDl').close();
+      try{ await saveToGallery(items); toast('Salvat în galerie, în albumul „Carusel Studio” — ' + pl(items.length, 'imagine', 'imagini')); }
+      catch(e){ await nativeShare(items, 'Carusel'); }                 // older Android: let the system offer "save" and the other apps
+    }
+    else if (NATIVE){ $('dlgDl').close(); await nativeShare(items, 'Carusel'); }
     else if (zip){ const files = []; for (const it of items) files.push({name:it.name, data:new Uint8Array(await it.blob.arrayBuffer())}); saveBlob(makeZip(files), 'carusel.zip'); }
     else for (const it of items){ saveBlob(it.blob, it.name); await new Promise(r => setTimeout(r, 350)); }
     $('dlgDl').close(); if (!NATIVE) toast('Gata — ' + state.frames + ' cadre exportate');
@@ -1638,7 +1642,7 @@ async function exportVideo(){
   const ext = type.includes('mp4') ? 'mp4' : 'webm', blob = new Blob(chunks, {type:type.split(';')[0]});
   try{
     $('dlgDl').close();
-    if (NATIVE) await saveOrShare([{name:'carusel.' + ext, blob}], 'Carusel video');
+    if (NATIVE) await nativeShare([{name:'carusel.' + ext, blob}], 'Carusel video');
     else { saveBlob(blob, 'carusel.' + ext); toast(ext === 'mp4' ? 'Video salvat' : 'Video salvat ca WebM. Pentru MP4 (cerut de Instagram) exportă din Safari sau din aplicația de iPhone.'); }
   }catch(e){ if (!/cancel/i.test(String(e && e.message))) toast('Eroare la export: ' + (e && e.message)); }
   btn.disabled = false; btn.textContent = 'Salvează ca video';
@@ -1656,7 +1660,7 @@ $('pvStrip').addEventListener('scroll', pvInfo);
 /* ---------- project files ---------- */
 const blob2url = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
 async function saveProject(){
-  const used = new Set([...state.els.map(e => e.img), state.bg.img].filter(Boolean)), imgs = {};
+  const used = new Set(state.els.map(e => e.img).filter(Boolean)), imgs = {};
   for (const id of used) imgs[id] = await blob2url(images.get(id).blob);
   const blob = new Blob([JSON.stringify({app:'carusel-studio', v:1, state, images:imgs})], {type:'application/json'});
   if (NATIVE) nativeShare([{name:'proiect-carusel.json', blob}], 'Proiect Carusel').catch(() => {});
@@ -1669,7 +1673,7 @@ $('fProj').addEventListener('change', async ev => {
     for (const [id, url] of Object.entries(p.images)) await addBlob(await (await fetch(url)).blob(), id);
     await keepCurrent(); proj = {id:null, name:''};
     state = p.state; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); if ($('dlgLib').open) $('dlgLib').close();
-  }catch(e){ toast('Fișierul nu este un proiect Carusel CNF valid'); }
+  }catch(e){ toast('Fișierul nu este un proiect Carusel Studio valid'); }
 });
 
 /* ---------- project library (kept in this device's browser storage) ----------
@@ -1684,7 +1688,7 @@ function makeThumb(){
 }
 async function libSave(name){
   proj = {id:proj.id || uid(), name};
-  const used = new Set([...state.els.map(e => e.img), state.bg.img].filter(Boolean));
+  const used = new Set(state.els.map(e => e.img).filter(Boolean));
   const imgs = [...images].filter(([k]) => used.has(k)).map(([k, v]) => ({id:k, blob:v.blob}));
   const entry = {id:proj.id, name, date:Date.now(), frames:state.frames, format:state.format, thumb:makeThumb()}, data = {state:JSON.stringify(state), imgs};
   const s = await kv('readwrite'); s.put(entry, 'lib:' + proj.id); await idb(s.put(data, 'libdata:' + proj.id));
@@ -1705,7 +1709,7 @@ async function libDelete(id){
 function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); }
 function clearTemplate(){                             // "no template": keep the photos and the user's own elements, drop cells and decorations
   state.els = state.els.filter(e => !isSlot(e) && !e.d); state.els.forEach(e => { if (e.type === 'image') tplFx(e); }); state.des = null; state.tpl = null; state.blank = true;
-  if (!(state.bg.type === 'image' && state.bg.img)) state.bg = Object.assign({}, state.bg, {type:'solid', c1:'#ffffff'}); if (!getSel()) sel = null;
+  state.bg = Object.assign({}, state.bg, {type:'solid', c1:'#ffffff'}); if (!getSel()) sel = null;
   commit(); fit(); refreshPanel();
 }
 async function keepCurrent(){ if (state.els.length) await libSave(proj.name || defName()).catch(() => {}); }   // never lose work silently
@@ -1769,9 +1773,7 @@ $('bZi').onclick = () => setZoom(view.z * 1.25);
 $('bFit').onclick = fit;
 $('bPrev').onclick = preview;
 $('bDl').onclick = () => $('dlgDl').showModal();
-$('dlGo').onclick = () => download();
-$('dlShare').onclick = () => download(true);
-if (ANDROID) $('dlShare').style.display = '';
+$('dlGo').onclick = download;
 $('dlQ').oninput = () => $('dlQv').textContent = Math.round($('dlQ').value * 100) + '%';
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
 
