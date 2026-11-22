@@ -222,7 +222,7 @@ const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 41;                                        // bumped by publish.sh
+const APP_VERSION = 42;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -427,6 +427,22 @@ function dropPhoto(e, d){                   // end of dragging a loose photo
   if (from && isSlot(from)){ movePhoto(from, e); state.els.splice(state.els.indexOf(e), 1); sel = t.id; return; }
   Object.assign(e, {x:d.orig.x, y:d.orig.y});                               // a loose photo swapped with a cell takes the cell's photo back to where it started
   sel = t.id;
+}
+/* Eyedropper for the text colour: the next click on the canvas takes the colour of the picture under it (the text itself is
+   left out, so the colour comes from what is behind it). While it waits, a swatch next to the pointer shows the colour. */
+let pickColor = null;
+function pickStart(e, k){ pickColor = {id:e.id, k}; sc.classList.add('swap'); toast('Apasă pe locul din pânză a cărui culoare o vrei. Esc anulează.'); refreshPanel(); render(); }
+function pickEnd(msg){ pickColor = null; sc.classList.remove('swap'); if (msg) toast(msg); refreshPanel(); render(); }
+function pickAt(x, y){
+  const pc = pickColor, e = pc && state.els.find(q => q.id === pc.id);
+  if (!e || x < 0 || y < 0 || x >= W() || y >= H()) return pickEnd('Pipeta a fost anulată.');
+  const c = document.createElement('canvas'); c.width = c.height = 1;
+  const g = c.getContext('2d', {willReadFrequently:true}), keep = state.els;
+  g.translate(-Math.floor(x), -Math.floor(y)); state.els = keep.filter(q => q !== e);
+  try{ drawScene(g, 2, 1); } finally{ state.els = keep; }
+  const d = g.getImageData(0, 0, 1, 1).data, hex = '#' + [d[0], d[1], d[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+  e[pc.k] = hex; if (e.d) e.d = 2; commit();
+  pickEnd('Culoarea ' + hex + ' a fost aplicată.');
 }
 let swapFrom = null;                       // "Schimbă cu altă poză": the photo waiting for its partner
 function swapPick(e){
@@ -750,6 +766,11 @@ function paint(){
     ctx.fillStyle = '#ff8552'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx - bw / 2, by - 10, bw, 20, 5); else ctx.rect(bx - bw / 2, by - 10, bw, 20); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.fillText(t, bx, by + .5);
   }
+  if (pickColor && pickColor.p){
+    const [px, py, col] = pickColor.p, cx = px + 26, cy = py - 26;
+    ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.stroke();
+  }
   const pb = plusBtn();
   if (pb){
     ctx.beginPath(); ctx.arc(pb[0], pb[1], pb[2], 0, Math.PI * 2); ctx.fillStyle = '#ff8552'; ctx.fill();
@@ -852,6 +873,7 @@ sc.addEventListener('pointerdown', ev => {
   const [mx, my] = evPos(ev);
   if (mx > sc.clientWidth || my > sc.clientHeight) return;      // scrollbar
   const [x, y] = s2w(mx, my);
+  if (pickColor){ ev.preventDefault(); tap = null; return pickAt(x, y); }
   if (swapFrom){ ev.preventDefault(); tap = null; return swapPick(hitTest(x, y)); }
   const pb = plusBtn(); if (pb && Math.hypot(mx - pb[0], my - pb[1]) <= pb[2] + (ev.pointerType === 'touch' ? 10 : 4)){ ev.preventDefault(); tap = null; return addFrame(); }
   const hd = hitHandle(mx, my, ev.pointerType === 'touch' ? 18 : 10);
@@ -874,6 +896,10 @@ sc.addEventListener('pointerdown', ev => {
 });
 sc.addEventListener('pointermove', ev => {
   const [mx, my] = evPos(ev), [x, y] = s2w(mx, my);
+  if (pickColor){                                                           // eyedropper: preview the colour under the pointer
+    const dpr = window.devicePixelRatio || 1, d = ctx.getImageData(Math.round(mx * dpr), Math.round(my * dpr), 1, 1).data;
+    pickColor.p = [mx, my, `rgb(${d[0]},${d[1]},${d[2]})`]; sc.style.cursor = 'crosshair'; render(); return;
+  }
   if (!drag){
     const hd = hitHandle(mx, my, 10);
     const over = hitTest(x, y), pb = plusBtn();
@@ -1026,6 +1052,7 @@ window.addEventListener('keydown', ev => {
   if (!e) return;
   const cr = cropping();
   if (k === 'enter' && e.type === 'image' && e.img){ ev.preventDefault(); return setCrop(!cr); }
+  if (k === 'escape' && pickColor){ ev.preventDefault(); return pickEnd('Pipeta a fost anulată.'); }
   if (k === 'escape' && swapFrom){ ev.preventDefault(); return swapPick(null); }
   if (k === 'escape' && cr){ ev.preventDefault(); return setCrop(false); }
   if (cr && k.startsWith('arrow')){                     // nudge the photo inside its frame
@@ -1070,6 +1097,7 @@ function act(a){
   if (a === 'new') return leave(newProject);
   if (!e) return;
   if (a === 'pick') return pickImage(e.id);
+  if (a === 'pipette') return pickColor ? pickEnd() : pickStart(e, 'color');
   if (a === 'swap'){ swapFrom = e.id; cropId = null; sc.classList.add('swap'); toast('Apasă acum pe poza (sau celula) cu care vrei să o schimbi.'); refreshPanel(); return render(); }
   if (a === 'crop') return setCrop(true);
   if (a === 'cropdone') return setCrop(false);
@@ -1578,7 +1606,7 @@ function refreshPanel(){
       h += `<h3>Text</h3><textarea data-o="el" data-k="text">${esc(e.text)}</textarea>
       <div class="row"><label>Font</label><select data-o="el" data-k="font">${(FONTS.includes(e.font) ? FONTS : [e.font, ...FONTS]).map(f => `<option ${f === e.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
       <div class="row"><label>Mărime</label><input type="number" data-o="el" data-k="size" min="8" max="2000" value="${Math.round(e.size)}"></div>
-      <div class="row"><label>Culoare</label><input type="color" data-o="el" data-k="color" value="${e.color}"></div>
+      <div class="row"><label>Culoare</label><input type="color" data-o="el" data-k="color" value="${e.color}"><button class="btn icon ${pickColor && pickColor.id === e.id ? 'on' : ''}" data-act="pipette" title="Pipetă: ia culoarea din poză" aria-label="Pipetă"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10.2 2.3a1.8 1.8 0 0 1 2.6 0l.9.9a1.8 1.8 0 0 1 0 2.6l-1.6 1.6-3.5-3.5z"/><path d="M8.6 3.9l3.5 3.5M9.6 6.4l-6 6V14h1.6l6-6"/></svg></button></div>
       <div class="row"><label>Aliniere</label><select data-o="el" data-k="align"><option value="left" ${e.align === 'left' ? 'selected' : ''}>Stânga</option><option value="center" ${e.align === 'center' ? 'selected' : ''}>Centru</option><option value="right" ${e.align === 'right' ? 'selected' : ''}>Dreapta</option></select></div>
       ${chk('Îngroșat', 'bold', e.bold)}${chk('Cursiv', 'italic', e.italic)}${chk('Umbră', 'shadow', e.shadow)}
       ${rng('Spațiu rânduri', 'lh', 0.8, 2.2, 0.01, e.lh)}${rng('Spațiu litere', 'ls', -5, 60, 1, e.ls || 0)}
