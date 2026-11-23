@@ -222,7 +222,7 @@ const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 42;                                        // bumped by publish.sh
+const APP_VERSION = 43;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -714,13 +714,18 @@ function handlesOf(e){
    A click on bare canvas picks that frame; if nothing is on it (in a template: only empty cells and the template's own
    decorations), Backspace / Delete or the panel button removes it and the frames after it move one place to the left. */
 let curFrame = null;
-function setFrameSel(f){ if (f === curFrame) return; curFrame = f; refreshPanel(); render(); }
+function setFrameSel(f){ if (f === curFrame) return; curFrame = f; seqSel = null; refreshPanel(); render(); }
 const frameEls = i => state.els.filter(e => { const b = aabb(e); return b.x1 > i * FW + 2 && b.x0 < (i + 1) * FW - 2; });
 const frameEmpty = i => i != null && i < state.frames && frameEls(i).every(e => tplActive() && (isSlot(e) || e.d === 1));
 const emptyFrameSel = () => { const e = getSel(); return state.frames > 1 && (!e || isSlot(e) || e.d === 1) && frameEmpty(curFrame) ? curFrame : null; };   // bare canvas, or an empty cell, on an empty frame
 function deleteFrame(i){
   if (i == null || !frameEmpty(i)) return;
   if (state.frames <= 1) return toast('Caruselul are un singur cadru.');
+  if (state.des === 'seq'){                                                  // per-frame plan: drop that frame from the plan
+    const st = seqStarts(); let j = st.length - 1; while (j > 0 && st[j] > i) j--;
+    const k = state.seq[j]; if (LAY[k].s === 1) state.seq.splice(j, 1); else state.seq[j] = LAY[k].s === 3 ? 'pano2' : 'full';
+    state.frames--; curFrame = null; design('seq'); return toast('Cadrul ' + (i + 1) + ' a fost șters. „↶” îl aduce înapoi.');
+  }
   const x0 = i * FW, x1 = x0 + FW, m = v => v <= x0 ? v : v >= x1 ? v - FW : x0, tp = tplActive();
   state.els = state.els.filter(e => {
     const b = aabb(e), cx = (b.x0 + b.x1) / 2;
@@ -757,6 +762,10 @@ function paint(){
     if (i < state.frames){ ctx.fillStyle = '#7d838c'; ctx.fillText(String(i + 1), tx + (i + .5) * FW * z, ty - 10); }
   }
   ctx.setLineDash([]);
+  if (openSec.seq && state.des === 'seq' && state.seq && !getSel() && !drag){
+    const j = seqEntry(), f0 = seqStarts()[j], n = LAY[state.seq[j]].s, fx = Math.round(tx + f0 * FW * z);
+    ctx.setLineDash([7, 5]); ctx.strokeStyle = CROPC; ctx.lineWidth = 2; ctx.strokeRect(fx + 2, ty + 2, Math.round(n * FW * z) - 4, h * z - 4); ctx.setLineDash([]);
+  }
   const ef = emptyFrameSel();
   if (ef != null && !drag){
     const fx = Math.round(tx + ef * FW * z), fw = Math.round(FW * z), t = COARSE ? 'Cadru gol · îl ștergi din panou' : 'Cadru gol · Backspace = șterge';
@@ -1082,6 +1091,10 @@ function act(a){
   if (a.startsWith('des:')){ const k = a.slice(4); return chooseTemplate('des', /^\d+$/.test(k) ? +k : k); }
   if (a.startsWith('txt:')) return addText(TEXT_STYLES[+a.slice(4)].o);
   if (a === 'delframe'){ const f = emptyFrameSel(); sel = null; return deleteFrame(f); }
+  if (a.startsWith('lay:')) return seqLayout(a.slice(4));
+  if (a.startsWith('seqsel:')){ const j = +a.slice(7); if (state.des === 'seq') seqSel = j; else { curFrame = j; seqSel = null; } refreshPanel(); return render(); }
+  if (a === 'seqadd') return seqAdd();
+  if (a === 'seqgap'){ state.seqGap = state.seqGap ? 0 : 30; if (state.des === 'seq') return design('seq'); commit(); return refreshPanel(); }
   if (a === 'moredes'){ openSec.des = !openSec.des; return refreshPanel(); }
   if (a === 'utsave') return utplAsk();
   if (a === 'arrange'){ const n = autoArrange(); if (n){ commit(); render(); } return toast(n ? 'Pozele au fost reașezate după forma celulelor.' : 'Pozele sunt deja în celulele care li se potrivesc cel mai bine.'); }
@@ -1244,13 +1257,13 @@ function ask(title, msg, a, b, c){        // two-choice question; resolves 'a', 
   });
 }
 async function chooseTemplate(kind, i){
-  if (kind === 'des' && !photoCount() && DES(i) && state.frames < Math.ceil(DES(i).p)) state.frames = Math.ceil(DES(i).p);   // an empty canvas grows to show the whole template
+  if (kind === 'des' && !photoCount() && DES(i) && state.frames < Math.ceil(DES(i).len || DES(i).p)) state.frames = Math.ceil(DES(i).len || DES(i).p);   // an empty canvas grows to show the whole template
   const P = photoCount(), f = state.frames, cap = capacity(kind, i, f);
   if (P > cap){
     const need = framesFor(kind, i, P), room = capacity(kind, i, need), grow = need > f && room > cap;
     const r = await ask('Prea multe poze pentru acest șablon', `Ai ${pl(P, 'poză', 'poze')}, iar șablonul are loc pentru ${cap} pe ${pl(f, 'cadru', 'cadre')}. Vrei să reduci numărul de poze?` + (grow && room < P ? ` Chiar și pe ${need} cadre încap doar ${room}.` : '') + (grow ? '' : ' Șablonul nu se poate extinde mai mult.'),
       grow ? `Nu, extinde la ${need} cadre` : null, `Da, scoate ultimele ${P - cap}`);
-    if (!r) return;
+    if (!r) return false;
     if (r === 'a') state.frames = need;
     const lost = P - (r === 'a' ? room : cap);
     applyTpl(kind, i, r === 'a');
@@ -1426,7 +1439,81 @@ function tplFx(e, fx){                     // a filter the template asks for (bl
   return e;
 }
 const DSHOW = DESIGNS.map((D, i) => i).sort((a, b) => (b >= 22) - (a >= 22) || a - b);   // shown with the photo-story templates (added last) first; positions in DESIGNS stay fixed because projects store them
-const DES = i => typeof i === 'number' ? DESIGNS[i] : UTPL.find(D => D.id === i);   // built-in templates go by position, the user's own by id
+/* ---------- a different layout on every frame ----------
+   state.seq lists the layout of each frame in turn (a panorama takes 2 or 3 frames). It is turned into a design ('seq')
+   so it works like any template: photos fill its cells in order, empty cells keep their +, frames can be added. */
+const gridR = (c, r) => [...Array(c * r)].map((_, k) => [(k % c) / c, Math.floor(k / c) / r, 1 / c, 1 / r]);
+const LAY = {
+  full:{n:'O poză', s:1, r:[[0, 0, 1, 1]]},
+  framed:{n:'Poză cu margine', s:1, r:[[.08, .065, .84, .87]]},
+  two_v:{n:'Două, una sub alta', s:1, r:[[0, 0, 1, .5], [0, .5, 1, .5]]},
+  two_h:{n:'Două alăturate', s:1, r:[[0, 0, .5, 1], [.5, 0, .5, 1]]},
+  three:{n:'Trei coloane', s:1, r:[[0, 0, T3, 1], [T3, 0, T3, 1], [2 * T3, 0, T3, 1]]},
+  big2:{n:'Mare + două mici', s:1, r:[[0, 0, 1, .62], [0, .62, .5, .38], [.5, .62, .5, .38]]},
+  g4:{n:'Grilă 4', s:1, r:gridR(2, 2)}, g6:{n:'Grilă 6', s:1, r:gridR(2, 3)}, g9:{n:'Grilă 9', s:1, r:gridR(3, 3)},
+  pano2:{n:'Panoramă pe 2 cadre', s:2, r:[[0, 0, 2, 1]]},
+  pano3:{n:'Panoramă pe 3 cadre', s:3, r:[[0, 0, 3, 1]]},
+  blank:{n:'Fără poze (pentru text)', s:1, r:[]},
+};
+let seqSel = null;                                                            // the plan entry being edited in the panel
+const seqTotal = () => (state.seq || []).reduce((a, k) => a + LAY[k].s, 0);
+function seqStarts(){ const a = []; let f = 0; for (const k of state.seq || []){ a.push(f); f += LAY[k].s; } return a; }
+function seqEntry(){                                                          // which entry the panel edits: the one picked, else the frame last clicked
+  const f = clamp(curFrame ?? 0, 0, state.frames - 1);
+  if (state.des !== 'seq' || !state.seq) return f;
+  if (seqSel != null && seqSel < state.seq.length) return seqSel;
+  const st = seqStarts(); let j = st.length - 1; while (j > 0 && st[j] > f) j--; return Math.max(0, j);
+}
+function seqSync(){                                                           // keep the plan as long as the canvas
+  if (!state.seq) state.seq = [];
+  while (state.seq.length && seqTotal() > state.frames) state.seq.pop();
+  while (seqTotal() < state.frames) state.seq.push('full');
+}
+function seqDesign(){
+  if (!state.seq) return null;
+  const g = state.seqGap || 0, gx = g / FW, gy = g / H(), it = [], edge = v => Math.abs(v - Math.round(v)) < 1e-6;
+  const cells = (k, start) => LAY[k].r.map(r => {
+    let x0 = start + r[0], x1 = x0 + r[2], y0 = r[1], y1 = r[1] + r[3];
+    x0 += edge(x0) ? gx : gx / 2; x1 -= edge(x1) ? gx : gx / 2; y0 += y0 < 1e-6 ? gy : gy / 2; y1 -= y1 > 1 - 1e-6 ? gy : gy / 2;
+    return {i:1, x:x0, y:y0, w:x1 - x0, h:y1 - y0};
+  }).sort((a, b) => byPos((a.x + a.w / 2) * FW, a.y * H(), (b.x + b.w / 2) * FW, b.y * H()));   // compared in pixels, as photosInOrder does          // in the order photos are read back, so re-applying never shuffles them
+  let f = 0;
+  for (const k of state.seq){ it.push(...cells(k, f)); f += LAY[k].s; }
+  const len = f;
+  for (; f < MAXF; f++) it.push(...cells('full', f));                       // frames added beyond the plan hold one photo each
+  const b = state.bg;
+  return {id:'seq', n:'Pe fiecare cadru', p:MAXF, len, bg:b.type === 'grad' ? [b.c1, b.c2, b.angle] : [b.c1], it};
+}
+async function seqApply(prev, prevFrames){
+  state.frames = Math.max(1, seqTotal());
+  const P = photoCount(), cap = designCells(seqDesign(), state.frames);
+  if (P > cap){                                                              // more photos than the plan holds: ask, like any template
+    const ok = await chooseTemplate('des', 'seq');
+    if (ok === false){ state.seq = prev; state.frames = prevFrames; refreshPanel(); render(); }
+    return;
+  }
+  design('seq');
+}
+function seqLayout(k){
+  const prev = state.seq ? state.seq.slice() : null, prevFrames = state.frames, j = seqEntry();
+  if (state.des !== 'seq' || !state.seq) state.seq = Array(state.frames).fill('full');    // starting out: every frame one photo
+  const ns = state.seq.slice(); ns[j] = k;
+  if (ns.reduce((a, q) => a + LAY[q].s, 0) > MAXF) return toast('Nu mai încap cadre: caruselul are cel mult ' + MAXF + '.');
+  state.seq = ns; seqSel = j; return seqApply(prev, prevFrames);
+}
+function seqAdd(){
+  if (state.frames >= MAXF) return toast('Caruselul are cel mult ' + MAXF + ' cadre.');
+  const prev = state.seq ? state.seq.slice() : null, prevFrames = state.frames;
+  if (state.des !== 'seq' || !state.seq) state.seq = Array(state.frames).fill('full');
+  state.seq.push('full'); seqSel = state.seq.length - 1; seqApply(prev, prevFrames);
+  setTimeout(() => { sc.scrollLeft = sc.scrollWidth; render(); }, 0);
+}
+function layThumb(L){
+  const w = 32 * L.s, r = L.r.map(q => `<rect x="${(q[0] * 32 + 1).toFixed(1)}" y="${(q[1] * 40 + 1).toFixed(1)}" width="${(q[2] * 32 - 2).toFixed(1)}" height="${(q[3] * 40 - 2).toFixed(1)}" rx="1"/>`).join('');
+  const cut = [...Array(L.s - 1)].map((_, k) => `<path d="M${32 * (k + 1)} 0v40" stroke="var(--accent)" stroke-dasharray="2 2" stroke-width=".8"/>`).join('');
+  return `<svg viewBox="0 0 ${w} 40" style="max-width:${L.s * 33}%;margin:0 auto 4px"><g fill="currentColor" fill-opacity=".55">${r}</g>${L.r.length ? '' : '<text x="16" y="25" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor" fill-opacity=".6">T</text>'}${cut}</svg>`;
+}
+const DES = i => i === 'seq' ? seqDesign() : typeof i === 'number' ? DESIGNS[i] : UTPL.find(D => D.id === i);   // built-in templates go by position, the user's own by id
 function designEls(D, frames, imgs, trim, edited){        // the elements template D puts on a canvas of this many frames
   const w = frames * FW, h = H(), out = [];
   let k = 0;
@@ -1454,6 +1541,7 @@ function designEls(D, frames, imgs, trim, edited){        // the elements templa
 }
 const designBg = D => D.bg.length > 1 ? {type:'grad', c1:D.bg[0], c2:D.bg[1], angle:D.bg[2]} : Object.assign({}, state.bg, {type:'solid', c1:D.bg[0]});
 function design(i, trim){
+  if (i === 'seq') seqSync();
   const D = DES(i); if (!D) return;
   const own = state.els.filter(e => (e.type !== 'image' && !e.d) || e.free);     // the user's own text, shapes and loose photos stay
   const edited = {}; if (state.des === i) state.els.forEach(e => { if (e.d === 2 && e.dk) edited[e.dk] = e; });   // template text/shapes the user changed are kept as they are
@@ -1547,6 +1635,18 @@ function refreshPanel(){
     <div class="row"><button class="btn" style="flex:1" data-act="moredes">${allDes ? '▴ Mai puține șabloane' : '▾ Mai multe șabloane (' + (DSHOW.length - 6) + ')'}</button></div>
     <div class="row"><button class="btn ${state.des == null && state.tpl == null ? 'on' : ''}" style="flex:1" data-act="des:none">Fără șablon (pânză goală)</button></div>
     <div class="tip" style="margin:0 0 4px">Compoziții gata făcute, cu fundal, rame și text de exemplu. Pune pozele tale în celule și schimbă textele.</div>
+    <details data-sec="seq" ${openSec.seq || state.des === 'seq' ? 'open' : ''}><summary>Alt aspect pe fiecare cadru</summary>
+    ${(() => {
+      const on = state.des === 'seq' && state.seq, sj = seqEntry(), st = on ? seqStarts() : null;
+      const chips = on ? state.seq.map((k, j) => `<button class="btn ${j === sj ? 'on' : ''}" data-act="seqsel:${j}">${st[j] + 1}${LAY[k].s > 1 ? '–' + (st[j] + LAY[k].s) : ''}</button>`).join('')
+                       : [...Array(state.frames)].map((_, j) => `<button class="btn ${j === sj ? 'on' : ''}" data-act="seqsel:${j}">${j + 1}</button>`).join('');
+      const cur = on ? state.seq[sj] : null;
+      return `<div class="tip" style="margin:0 0 6px">Alege cadrul, apoi aspectul lui. De exemplu: o poză întreagă pe primul, o grilă de 9 pe al doilea și o panoramă după ele.</div>
+      <div class="seg chips">${chips}<button class="btn" data-act="seqadd" title="Adaugă un cadru">＋</button></div>
+      <div class="cgrid">${Object.keys(LAY).map(k => `<button class="btn ${cur === k ? 'on' : ''}" data-act="lay:${k}">${layThumb(LAY[k])}${LAY[k].n}</button>`).join('')}</div>
+      <div class="row"><button class="btn ${state.seqGap ? 'on' : ''}" style="flex:1" data-act="seqgap">${state.seqGap ? '✓ ' : ''}Spațiu între poze</button></div>`;
+    })()}
+    </details>
     <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
     ${UTPL.length ? `<div class="cgrid">${UTPL.map(D => `<div class="utpl"><button class="btn ${state.des === D.id ? 'on' : ''}" data-act="des:${D.id}"><img src="${D.thumb}" alt="">${esc(D.n)}</button><button class="x" data-act="utdel:${D.id}" title="Șterge șablonul" aria-label="Șterge șablonul">×</button></div>`).join('')}</div>` : ''}
     <div class="row"><button class="btn" style="flex:1" data-act="utsave">＋ Salvează aranjarea ca șablon</button></div>
@@ -1639,7 +1739,7 @@ panel.addEventListener('dblclick', ev => {                 // double click on a 
   ev.preventDefault(); t.value = SLIDER0[t.dataset.k];
   t.dispatchEvent(new Event('input', {bubbles:true})); t.dispatchEvent(new Event('change', {bubbles:true}));
 });
-const openSec = {col:false, auto:false, des:false};                  // which folded sections the user opened; survives panel refreshes
+const openSec = {col:false, auto:false, des:false, seq:false};                  // which folded sections the user opened; survives panel refreshes
 panel.addEventListener('toggle', ev => { const d = ev.target; if (d.dataset && d.dataset.sec) openSec[d.dataset.sec] = d.open; }, true);
 
 /* ---------- export ---------- */
