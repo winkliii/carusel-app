@@ -53,6 +53,12 @@ a.btn{display:block;text-decoration:none;color:var(--text)}
 aside{width:290px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:14px;-webkit-user-select:none}
 aside h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;font-weight:600}
 aside h3:first-child{margin-top:0}
+aside h3.fold{cursor:pointer;-webkit-user-select:none;user-select:none;display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid transparent}   /* folding sections, as in Lightroom */
+aside h3.fold::before{content:'';width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;transition:transform .12s}
+aside h3.fold.shut::before{transform:rotate(-90deg)}
+aside h3.fold.shut{border-bottom-color:var(--line);margin-bottom:4px}
+aside h3.fold:hover{color:var(--text)}
+aside .folded{display:none !important}
 aside summary{display:block;list-style:none;background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:7px 11px;margin:0 0 8px;text-align:center;cursor:pointer}   /* folded sections open from a box that looks like the other buttons */
 aside summary::-webkit-details-marker{display:none}
 aside summary::before{content:'▾ '}
@@ -222,7 +228,7 @@ const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 44;                                        // bumped by publish.sh
+const APP_VERSION = 45;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1647,10 +1653,6 @@ function refreshPanel(){
       <div class="row"><button class="btn ${state.seqGap ? 'on' : ''}" style="flex:1" data-act="seqgap">${state.seqGap ? '✓ ' : ''}Spațiu între poze</button></div>`;
     })()}
     </details>
-    <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
-    ${UTPL.length ? `<div class="cgrid">${UTPL.map(D => `<div class="utpl"><button class="btn ${state.des === D.id ? 'on' : ''}" data-act="des:${D.id}"><img src="${D.thumb}" alt="">${esc(D.n)}</button><button class="x" data-act="utdel:${D.id}" title="Șterge șablonul" aria-label="Șterge șablonul">×</button></div>`).join('')}</div>` : ''}
-    <div class="row"><button class="btn" style="flex:1" data-act="utsave">＋ Salvează aranjarea ca șablon</button></div>
-    ${UTPL.length ? '' : '<div class="tip" style="margin:0 0 4px">Aranjează pânza cum îți place, apoi apasă butonul. Șablonul apare aici și îl refolosești cu alte poze.</div>'}
     <details data-sec="col" ${openSec.col || state.tpl != null ? 'open' : ''}><summary>Colaje simple (${COLLAGES.length})</summary>
     <div class="cgrid">${CSHOW.map(i => `<button class="btn ${state.tpl === i ? 'on' : ''}" data-act="col:${i}">${thumb(COLLAGES[i])}${COLLAGES[i].n}</button>`).join('')}</div>
     ${rng('Spațiu', 'gap', 0, 120, 1, state.gap ?? 30, 'state')}${rng('Colțuri', 'rad', 0, 200, 1, state.rad ?? 0, 'state')}
@@ -1662,6 +1664,10 @@ function refreshPanel(){
       <button class="btn" data-act="tpl:two">Două rânduri<small>Două benzi suprapuse</small></button>
     </div>
     </details>
+    <h3>Șabloanele mele${UTPL.length ? ' (' + UTPL.length + ')' : ''}</h3>
+    ${UTPL.length ? `<div class="cgrid">${UTPL.map(D => `<div class="utpl"><button class="btn ${state.des === D.id ? 'on' : ''}" data-act="des:${D.id}"><img src="${D.thumb}" alt="">${esc(D.n)}</button><button class="x" data-act="utdel:${D.id}" title="Șterge șablonul" aria-label="Șterge șablonul">×</button></div>`).join('')}</div>` : ''}
+    <div class="row"><button class="btn" style="flex:1" data-act="utsave">＋ Salvează aranjarea ca șablon</button></div>
+    ${UTPL.length ? '' : '<div class="tip" style="margin:0 0 4px">Aranjează pânza cum îți place, apoi apasă butonul. Șablonul apare aici și îl refolosești cu alte poze.</div>'}
     <h3>Text</h3>
     <div class="grid2">${TEXT_STYLES.map((t, i) => `<button class="btn" data-act="txt:${i}" style="${t.o.bold ? 'font-weight:700;' : ''}${t.o.italic ? 'font-style:italic;' : ''}">${t.n}</button>`).join('')}</div>
     <div class="tip" style="margin:0 0 4px">Textul apare în mijlocul ecranului; ${COARSE ? 'atinge-l' : 'dă click pe el'} ca să-i schimbi cuvintele, fontul și culoarea.</div>
@@ -1715,7 +1721,7 @@ function refreshPanel(){
       ${rng('Opacitate', 'opacity', 0.05, 1, 0.01, e.opacity)}${rng('Rotire', 'rot', -180, 180, 1, e.rot)}<h3>Strat</h3>${common}`;
     }
   }
-  panel.innerHTML = h; syncButtons();
+  panel.innerHTML = h; foldPanel(); syncButtons();
 }
 panel.addEventListener('input', ev => {
   const t = ev.target, k = t.dataset.k; if (!k) return;
@@ -1733,12 +1739,36 @@ panel.addEventListener('change', ev => {
   commit(); if (['type', 'kind', 'mode'].includes(ev.target.dataset.k) || ev.target.dataset.o === 'fx') refreshPanel();
   if (ev.target.dataset.o === 'bg' && ev.target.dataset.k === 'type' && ev.target.value === 'image' && !state.bg.img) pickImage('bg');   // choosing "Poză" opens the picker right away
 });
-panel.addEventListener('click', ev => { const b = ev.target.closest('[data-act]'); if (b) act(b.dataset.act); });
+panel.addEventListener('click', ev => {
+  const f = ev.target.closest('h3.fold');
+  if (f){                                                   // fold or unfold a section; Alt/⌥-click keeps only this one open
+    const k = f.dataset.fold;
+    if (ev.altKey){ panel.querySelectorAll('h3.fold').forEach(x => folded.add(x.dataset.fold)); folded.delete(k); }
+    else if (folded.has(k)) folded.delete(k); else folded.add(k);
+    try{ localStorage.setItem('cs_fold', JSON.stringify([...folded])); }catch(e){}
+    return foldPanel();
+  }
+  const b = ev.target.closest('[data-act]'); if (b) act(b.dataset.act);
+});
 panel.addEventListener('dblclick', ev => {                 // double click on a slider (or its label): back to the starting value
   const row = ev.target.closest('.row'), t = row && row.querySelector('input[type=range]'); if (!t || !(t.dataset.k in SLIDER0)) return;
   ev.preventDefault(); t.value = SLIDER0[t.dataset.k];
   t.dispatchEvent(new Event('input', {bubbles:true})); t.dispatchEvent(new Event('change', {bubbles:true}));
 });
+/* Panel sections can be folded away by clicking their title (remembered between sessions). A section is its <h3> and
+   everything after it up to the next <h3>, boxed buttons (<details>) included. */
+const folded = (() => { try{ return new Set(JSON.parse(localStorage.getItem('cs_fold') || '[]')); }catch(e){ return new Set(); } })();
+function foldPanel(){
+  let shut = false;
+  for (const n of panel.children){
+    if (n.tagName === 'H3'){
+      const k = n.textContent.replace(/\s*[(·].*$/, '').trim(); n.dataset.fold = k; n.classList.add('fold');
+      shut = folded.has(k); n.classList.toggle('shut', shut); n.title = shut ? 'Deschide secțiunea' : 'Strânge secțiunea (⌥/Alt + click: doar pe aceasta o lași deschisă)';
+      continue;
+    }
+    n.classList.toggle('folded', shut);
+  }
+}
 const openSec = {col:false, auto:false, des:false, seq:false};                  // which folded sections the user opened; survives panel refreshes
 panel.addEventListener('toggle', ev => { const d = ev.target; if (d.dataset && d.dataset.sec) openSec[d.dataset.sec] = d.open; }, true);
 
