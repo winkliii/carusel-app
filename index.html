@@ -222,7 +222,7 @@ const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 43;                                        // bumped by publish.sh
+const APP_VERSION = 44;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -679,7 +679,7 @@ function layout(){
   $('zl').textContent = Math.round(z * 100) + '%';
   render();
 }
-function fit(){
+function fit(){                           // zoom so the whole carousel fits; only on request, a new or opened project and start-up — edits keep the user's zoom (layout())
   const cw = sc.clientWidth, ch = sc.clientHeight;
   view.z = clamp(Math.min((ch - PAD * 2) / H(), (cw - PAD * 2) / FW), 0.05, 2);
   layout();
@@ -737,7 +737,7 @@ function deleteFrame(i){
   });
   state.frames--;
   if (tp && (tp[0] === 'col' ? COLLAGES[tp[1]] : DES(tp[1])).p !== 1){ state.tpl = null; state.des = null; }   // a pattern over several frames no longer lines up
-  curFrame = null; commit(); fit(); refreshPanel();
+  curFrame = null; commit(); layout(); refreshPanel();
   toast('Cadrul ' + (i + 1) + ' a fost șters. „↶” îl aduce înapoi.');
 }
 function plusBtn(){                        // the round + after the last frame: [x, y, radius] on screen, or null when no more frames fit
@@ -1083,7 +1083,7 @@ window.addEventListener('keydown', ev => {
 /* ---------- actions ---------- */
 function act(a){
   const e = getSel(), i = state.els.indexOf(e);
-  if (a.startsWith('fmt:')){ state.format = a.slice(4); if (!state.els.length) state.frames = 1; const tp = tplActive(); if (tp) return applyTpl(tp[0], tp[1]); commit(); fit(); refreshPanel(); return; }   // an empty canvas goes back to one slide in the chosen format
+  if (a.startsWith('fmt:')){ state.format = a.slice(4); if (!state.els.length) state.frames = 1; const tp = tplActive(); if (tp) return applyTpl(tp[0], tp[1]); commit(); layout(); refreshPanel(); return; }   // an empty canvas goes back to one slide in the chosen format
   if (a === 'f-' || a === 'f+') return setFrames(state.frames + (a === 'f+' ? 1 : -1));
   if (a.startsWith('tpl:')) return template(a.slice(4));
   if (a.startsWith('col:')){ const k = +a.slice(4); if (COLLAGES[k].g != null) state.gap = COLLAGES[k].g; return chooseTemplate('col', k); }
@@ -1170,7 +1170,7 @@ function template(name){
       else Object.assign(B, {x:xSm, y:m, w:wSm, h:h - 2 * m});
     }
   }
-  commit(); fit(); refreshPanel();
+  commit(); layout(); refreshPanel();
 }
 
 /* ---------- collage templates ----------
@@ -1232,7 +1232,7 @@ function collage(i, live, trim){
   state.els = [...cells, ...(live ? imgs.slice(rects.length) : []), ...rest];      // photos first, text stays on top
   state.tpl = i; if (!getSel()) sel = null;
   if (live){ render(); return; }
-  commit(); fit(); refreshPanel();
+  commit(); layout(); refreshPanel();
 }
 
 /* ---------- template capacity: keeping photos and cells in step ---------- */
@@ -1281,7 +1281,7 @@ async function chooseTemplate(kind, i){
 async function setFrames(n){
   n = clamp(n, 1, MAXF); if (n === state.frames) return;
   const tp = tplActive();
-  if (!tp){ state.frames = n; commit(); fit(); refreshPanel(); return; }
+  if (!tp){ state.frames = n; commit(); layout(); refreshPanel(); return; }
   const P = photoCount(), cap = capacity(tp[0], tp[1], n);
   if (P > cap){
     const r = await ask('Nu încap toate pozele', `Pe ${pl(n, 'cadru', 'cadre')} șablonul are ${pl(cap, 'loc', 'locuri')}, iar tu ai ${pl(P, 'poză', 'poze')}.`, `Rămâi la ${state.frames} cadre`, `Scoate ${pl(P - cap, 'poză', 'poze')}`);
@@ -1549,7 +1549,7 @@ function design(i, trim){
   state.els = [...out, ...own];                                        // photos beyond the template's capacity are dropped; callers ask first
   if (!(state.bg.type === 'image' && state.bg.img)) state.bg = designBg(D);   // a photo background chosen by the user stays
   state.tpl = null; state.des = i; if (!getSel()) sel = null;
-  commit(); fit(); refreshPanel();
+  commit(); layout(); refreshPanel();
 }
 /* ---------- the user's own templates ----------
    "Salvează ca șablon" turns what is on the canvas into a template in the same format as DESIGNS: photos become empty cells,
@@ -1916,7 +1916,7 @@ function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; h
 function clearTemplate(){                             // "no template": keep the photos and the user's own elements, drop cells and decorations
   state.els = state.els.filter(e => !isSlot(e) && !e.d); state.els.forEach(e => { if (e.type === 'image') tplFx(e); }); state.des = null; state.tpl = null; state.blank = true;
   if (!(state.bg.type === 'image' && state.bg.img)) state.bg = Object.assign({}, state.bg, {type:'solid', c1:'#ffffff'}); if (!getSel()) sel = null;
-  commit(); fit(); refreshPanel();
+  commit(); layout(); refreshPanel();
 }
 async function keepCurrent(){ if (state.els.length) await libSave(proj.name || defName()).catch(() => {}); }   // never lose work silently
 async function quickSave(){
