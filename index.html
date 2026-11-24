@@ -229,7 +229,7 @@ const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 48;                                        // bumped by publish.sh
+const APP_VERSION = 49;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -1542,8 +1542,8 @@ function seqTrim(){                             // the plan follows the number o
 }
 function seqLayout(k){
   seqInit();
-  const j = seqEntry(), cur = state.seq[j]; if (cur === k) return;
-  if (state.frames - LAY[cur].s + LAY[k].s > MAXF) return toast('Nu mai încap cadre: caruselul are cel mult ' + MAXF + '.');
+  const j = seqEntry(), cur = state.seq[j]; if (cur === k) return commit();       // seqInit may just have switched the plan: keep history in step with what is on screen
+  if (state.frames - LAY[cur].s + LAY[k].s > MAXF){ commit(); return toast('Nu mai încap cadre: caruselul are cel mult ' + MAXF + '.'); }
   const left = seqLocal(j, k); seqSel = j;
   commit(); layout(); refreshPanel();
   if (left) toast(pl(left, 'poză nu a încăput', 'poze nu au încăput') + ' în noul aspect. Au rămas libere pe cadru: trage-le într-o celulă sau șterge-le.');
