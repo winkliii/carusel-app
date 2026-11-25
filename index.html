@@ -229,7 +229,7 @@ const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());   // inside the iPhone/Android app
 const ANDROID = NATIVE && !!(Capacitor.getPlatform && Capacitor.getPlatform() === 'android');
 const COARSE = matchMedia('(pointer:coarse)').matches;
-const APP_VERSION = 49;                                        // bumped by publish.sh
+const APP_VERSION = 50;                                        // bumped by publish.sh
 const UPDATE_URL = 'https://winkliii.github.io/carusel-app/';     // where the phone apps look for a newer version
 const DESKTOP = !!window.caruselDesktop;                         // inside the Mac/Windows app (desktop/preload.js)
 const WEB = !NATIVE && !/Electron/.test(navigator.userAgent);   // plain browser: offer the installable apps
@@ -298,19 +298,41 @@ async function saveLocal(){
   try{
     const used = new Set([...state.els.map(e => e.img), state.bg.img].filter(Boolean));
     const imgs = [...images].filter(([id]) => used.has(id)).map(([id, v]) => ({id, blob:v.blob}));
-    const d = await db(); d.transaction('kv', 'readwrite').objectStore('kv').put({state:JSON.stringify(state), imgs, proj}, 'project');
-  }catch(e){}
+    const s = await kv('readwrite'); s.put({state:JSON.stringify(state), imgs, proj}, 'project'); await txDone(s);
+    saveLocal.failed = false;
+  }catch(e){
+    console.warn('autosave', e);
+    if (!saveLocal.failed){ saveLocal.failed = true; toast('Salvarea automată nu merge (poate spațiul e plin). Salvează proiectul ca fișier.'); }
+  }
 }
 async function loadLocal(){
+  let rec = null;
   try{
-    const d = await db();
-    const rec = await new Promise((res, rej) => { const r = d.transaction('kv').objectStore('kv').get('project'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    rec = await idb((await kv('readonly')).get('project'));
     if (!rec) return false;
-    for (const i of rec.imgs) await addBlob(i.blob, i.id).catch(() => {});
+    let missing = 0;
+    for (const i of rec.imgs) await addBlob(i.blob, i.id).catch(() => missing++);
     state = JSON.parse(rec.state); if (rec.proj) proj = rec.proj;
     state.els = state.els.filter(e => e.type !== 'image' || !e.img || images.has(e.img));
+    if (missing){                                   // the autosave is about to overwrite the record: keep the complete one first
+      proj = {id:null, name:''};
+      await keepRecovery(rec);
+      toast(pl(missing, 'poză nu a putut fi citită', 'poze nu au putut fi citite') + '. Am păstrat o copie de siguranță în „Proiecte”.');
+    }
     return true;
-  }catch(e){ return false; }
+  }catch(e){
+    console.warn('load', e);
+    if (rec) await keepRecovery(rec);
+    toast(rec ? 'Proiectul salvat nu a putut fi deschis. Am păstrat o copie de siguranță în „Proiecte”.' : 'Nu am putut citi lucrul salvat pe acest dispozitiv.');
+    return false;
+  }
+}
+async function keepRecovery(rec){
+  try{
+    const id = uid(), s = await kv('readwrite');
+    s.put({id, name:'Copie de siguranță', date:Date.now(), frames:'?', format:'', thumb:'data:image/gif;base64,R0lGODlhAQABAAAAACw='}, 'lib:' + id);
+    s.put({state:rec.state, imgs:rec.imgs}, 'libdata:' + id); await txDone(s);
+  }catch(e){ console.warn('recovery copy', e); }
 }
 
 /* ---------- images ---------- */
@@ -1609,7 +1631,7 @@ function design(i, trim){
    "Salvează ca șablon" turns what is on the canvas into a template in the same format as DESIGNS: photos become empty cells,
    text and shapes are kept as they are, and the whole canvas is one repeat of the pattern. Kept in the browser database. */
 let UTPL = [];
-async function utplLoad(){ try{ UTPL = (await idb((await kv('readonly')).getAll(IDBKeyRange.bound('utpl:', 'utpl:\uffff')))).sort((a, b) => a.date - b.date); }catch(e){ UTPL = []; } }
+async function utplLoad(){ try{ UTPL = (await idb((await kv('readonly')).getAll(IDBKeyRange.bound('utpl:', 'utpl:\uffff')))).sort((a, b) => a.date - b.date); }catch(e){ console.warn('templates', e); UTPL = []; toast('Șabloanele tale nu au putut fi citite'); } }
 function utplThumb(D){                                    // small picture of the template with empty cells
   const keep = state, f = Math.min(Math.ceil(D.p), 3);
   state = Object.assign({}, keep, {frames:f}); state.bg = designBg(D); state.els = designEls(D, f, [], false, {});
@@ -1632,7 +1654,7 @@ async function utplSave(){
   });
   const D = {id, n:name, date:Date.now(), p:state.frames, bg:b.type === 'grad' ? [b.c1, b.c2, b.angle] : [b.c1], it};
   D.thumb = (UTPL.push(D), utplThumb(D));
-  try{ await idb((await kv('readwrite')).put(D, 'utpl:' + id)); }catch(e){ UTPL.pop(); return toast('Nu am putut salva șablonul.'); }
+  try{ const s = await kv('readwrite'); s.put(D, 'utpl:' + id); await txDone(s); }catch(e){ UTPL.pop(); return toast('Nu am putut salva șablonul.'); }
   state.els.forEach((e, n) => { if (e.type !== 'image'){ e.d = 2; e.dk = '0:' + n; } });   // the canvas now counts as this template, so applying it again does not double the text
   state.des = id; state.tpl = null; commit();
   $('dlgTpl').close(); refreshPanel(); toast('Șablon salvat. Îl găsești la „Șabloanele mele”.');
@@ -1640,7 +1662,8 @@ async function utplSave(){
 async function utplDelete(id){
   const D = DES(id); if (!D) return;
   if (await ask('Ștergi șablonul?', `„${D.n}” dispare din „Șabloanele mele”. Proiectele făcute cu el rămân neschimbate.`, null, 'Șterge') !== 'b') return;
-  UTPL = UTPL.filter(x => x.id !== id); try{ await idb((await kv('readwrite')).delete('utpl:' + id)); }catch(e){}
+  try{ const s = await kv('readwrite'); s.delete('utpl:' + id); await txDone(s); }catch(e){ return toast('Șablonul nu a putut fi șters'); }
+  UTPL = UTPL.filter(x => x.id !== id);
   if (state.des === id){ state.des = null; commit(); }
   refreshPanel();
 }
@@ -1875,6 +1898,7 @@ async function saveOrShare(items, title){
   if (ANDROID){
     try{ await androidGallery(items); toast('Salvat în galerie, în albumul „' + GALLERY_ALBUM + '”'); return; }           // 1) MediaStore plugin: shows up in the gallery at once
     catch(e){
+      console.warn('gallery plugin', e);
       try{ await saveToGallery(items); toast('Salvat în galerie, în albumul „' + GALLERY_ALBUM + '”'); return; }          // 2) older app without the plugin: write into Pictures
       catch(e2){ toast('Nu s-a putut salva direct în galerie. Se deschide partajarea.'); }                                  // 3) the share sheet
     }
@@ -1947,7 +1971,7 @@ async function saveProject(){
   const used = new Set([...state.els.map(e => e.img), state.bg.img].filter(Boolean)), imgs = {};
   for (const id of used) imgs[id] = await blob2url(images.get(id).blob);
   const blob = new Blob([JSON.stringify({app:'carusel-studio', v:1, state, images:imgs})], {type:'application/json'});
-  if (NATIVE) nativeShare([{name:'proiect-carusel.json', blob}], 'Proiect Carusel').catch(() => {});
+  if (NATIVE) nativeShare([{name:'proiect-carusel.json', blob}], 'Proiect Carusel').catch(e => { if (!/cancel/i.test(String(e && e.message))) toast('Nu s-a putut salva fișierul: ' + (e && e.message)); });
   else saveBlob(blob, 'proiect-carusel.json');
 }
 $('fProj').addEventListener('change', async ev => {
@@ -1955,7 +1979,8 @@ $('fProj').addEventListener('change', async ev => {
   try{
     const p = JSON.parse(await f.text()); if (p.app !== 'carusel-studio') throw 0;
     for (const [id, url] of Object.entries(p.images)) await addBlob(await (await fetch(url)).blob(), id);
-    await keepCurrent(); proj = {id:null, name:''};
+    if (!await keepCurrent()) return;
+    proj = {id:null, name:''};
     state = p.state; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); if ($('dlgLib').open) $('dlgLib').close();
   }catch(e){ toast('Fișierul nu este un proiect Carusel CNF valid'); }
 });
@@ -1964,6 +1989,8 @@ $('fProj').addEventListener('change', async ev => {
    'lib:<id>' holds the small listing entry (name, date, thumbnail), 'libdata:<id>' the project itself with its photos. */
 const idb = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const kv = async mode => (await db()).transaction('kv', mode).objectStore('kv');
+// a request can "succeed" and the write still be thrown away (full storage): only the end of the transaction counts
+const txDone = s => new Promise((res, rej) => { const t = s.transaction; t.oncomplete = () => res(); t.onerror = t.onabort = () => rej(t.error || new Error('scrierea a fost întreruptă')); });
 const defName = () => 'Proiect ' + new Date().toLocaleDateString('ro-RO');
 function makeThumb(){
   const h = 96, k = h / H(), c = document.createElement('canvas'); c.width = Math.min(480, Math.round(W() * k)); c.height = h;
@@ -1975,19 +2002,25 @@ async function libSave(name){
   const used = new Set([...state.els.map(e => e.img), state.bg.img].filter(Boolean));
   const imgs = [...images].filter(([k]) => used.has(k)).map(([k, v]) => ({id:k, blob:v.blob}));
   const entry = {id:proj.id, name, date:Date.now(), frames:state.frames, format:state.format, thumb:makeThumb()}, data = {state:JSON.stringify(state), imgs};
-  const s = await kv('readwrite'); s.put(entry, 'lib:' + proj.id); await idb(s.put(data, 'libdata:' + proj.id));
+  const s = await kv('readwrite'); s.put(entry, 'lib:' + proj.id); s.put(data, 'libdata:' + proj.id); await txDone(s);
   scheduleSave();
 }
 async function libList(){ return (await idb((await kv('readonly')).getAll(IDBKeyRange.bound('lib:', 'lib:￿')))).sort((a, b) => b.date - a.date); }
 async function libOpen(id){
+  try{ await libRead(id); }catch(e){ console.warn('open', e); toast('Proiectul nu a putut fi deschis'); }
+}
+async function libRead(id){
   const rec = await idb((await kv('readonly')).get('libdata:' + id)), entry = await idb((await kv('readonly')).get('lib:' + id));
   if (!rec){ toast('Proiectul nu a fost găsit'); return; }
-  for (const i of rec.imgs) if (!images.has(i.id)) await addBlob(i.blob, i.id).catch(() => {});
+  let missing = 0;
+  for (const i of rec.imgs) if (!images.has(i.id)) await addBlob(i.blob, i.id).catch(() => missing++);
   state = JSON.parse(rec.state); state.els = state.els.filter(e => e.type !== 'image' || !e.img || images.has(e.img));
-  proj = {id, name:entry ? entry.name : ''}; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel();
+  proj = {id:missing ? null : id, name:entry ? entry.name : ''};       // incomplete: saving must not overwrite the stored original
+  sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel();
+  if (missing) toast(pl(missing, 'poză nu a putut fi citită', 'poze nu au putut fi citite') + '. Proiectul salvat a rămas neatins.');
 }
 async function libDelete(id){
-  const s = await kv('readwrite'); s.delete('lib:' + id); await idb(s.delete('libdata:' + id));
+  const s = await kv('readwrite'); s.delete('lib:' + id); s.delete('libdata:' + id); await txDone(s);
   if (proj.id === id){ proj = {id:null, name:''}; scheduleSave(); refreshPanel(); }
 }
 function newProject(){ state = fresh(); proj = {id:null, name:''}; sel = null; hist = []; hi = -1; commit(); fit(); refreshPanel(); }
@@ -1996,7 +2029,11 @@ function clearTemplate(){                             // "no template": keep the
   if (!(state.bg.type === 'image' && state.bg.img)) state.bg = Object.assign({}, state.bg, {type:'solid', c1:'#ffffff'}); if (!getSel()) sel = null;
   commit(); layout(); refreshPanel();
 }
-async function keepCurrent(){ if (state.els.length) await libSave(proj.name || defName()).catch(() => {}); }   // never lose work silently
+async function keepCurrent(){                         // never lose work silently; false = stay on the current project
+  if (!state.els.length) return true;
+  try{ await libSave(proj.name || defName()); return true; }
+  catch(e){ return await ask('Proiectul curent nu a putut fi salvat', 'Dacă mergi mai departe, ce ai pe ecran se pierde. (' + (e && e.message) + ')', null, 'Continuă fără salvare') === 'b'; }
+}
 async function quickSave(){
   if (!proj.id) return showLib();
   try{ await libSave(proj.name); toast('Salvat: ' + proj.name); }catch(e){ toast('Nu s-a putut salva: ' + e.message); }
@@ -2014,7 +2051,8 @@ $('newSave').onclick = async () => {
   leaveDone();
 };
 async function renderLib(){
-  const list = await libList().catch(() => []);
+  let list;
+  try{ list = await libList(); }catch(e){ console.warn('library', e); $('libList').innerHTML = '<div class="tip">Nu am putut citi proiectele salvate. Închide aplicația și deschide-o din nou.</div>'; return; }
   $('libList').innerHTML = list.length ? list.map(p => `<div class="pitem ${p.id === proj.id ? 'on' : ''}" data-id="${p.id}"><img src="${p.thumb}" alt=""><div class="pmeta"><b>${esc(p.name)}</b><small>${new Date(p.date).toLocaleString('ro-RO', {dateStyle:'medium', timeStyle:'short'})} · ${p.frames} cadre · ${p.format}${p.id === proj.id ? ' · deschis acum' : ''}</small></div><button class="btn danger" data-del="${p.id}">Șterge</button></div>`).join('')
     : '<div class="tip">Niciun proiect salvat încă. Dă-i un nume celui curent și apasă „Salvează-l pe cel curent”.</div>';
 }
@@ -2026,7 +2064,7 @@ $('libSave').onclick = async () => {
 };
 $('libList').addEventListener('click', async ev => {
   const del = ev.target.closest('[data-del]'), item = ev.target.closest('.pitem');
-  if (del){ if (confirm('Ștergi definitiv acest proiect salvat?')){ await libDelete(del.dataset.del); renderLib(); } return; }
+  if (del){ if (confirm('Ștergi definitiv acest proiect salvat?')){ await libDelete(del.dataset.del).catch(() => toast('Proiectul nu a putut fi șters')); renderLib(); } return; }
   if (!item) return;
   $('dlgLib').close();
   if (item.dataset.id !== proj.id) leave(() => libOpen(item.dataset.id));
